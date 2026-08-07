@@ -26,5 +26,11 @@ USER appuser
 # ephemeral container storage. Override via DOCUMENTSTORE_STORAGE_DISK_DIRECTORY.
 ENV DOCUMENTSTORE_STORAGE_DISK_DIRECTORY=/data/documents
 
+# Default CORS origin for the deployed frontend. Baked in here (rather than
+# relying solely on the platform's dashboard env vars) because it's proven to
+# reach the process reliably; still overridable by a real runtime env var of
+# the same name if one is actually injected.
+ENV DOCUMENTSTORE_CORS_ALLOWED_ORIGINS=https://cercadocumenti.onrender.com
+
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -34,6 +34,12 @@ public class WebConfig implements WebMvcConfigurer {
             log.info("CORS: ALL env var names visible to this process ({} total): {}",
                     System.getenv().size(),
                     System.getenv().keySet().stream().sorted().collect(Collectors.joining(", ")));
+            log.info("CORS: RENDER_SERVICE_NAME='{}' RENDER_SERVICE_ID='{}' RENDER_GIT_BRANCH='{}' "
+                            + "RENDER_GIT_COMMIT='{}' RENDER_EXTERNAL_HOSTNAME='{}' "
+                            + "(not secret - compare against the service you're editing in the Render dashboard)",
+                    System.getenv("RENDER_SERVICE_NAME"), System.getenv("RENDER_SERVICE_ID"),
+                    System.getenv("RENDER_GIT_BRANCH"), System.getenv("RENDER_GIT_COMMIT"),
+                    System.getenv("RENDER_EXTERNAL_HOSTNAME"));
         } else {
             log.info("CORS: allowing origins {} for /api/**", allowedOrigins);
         }
