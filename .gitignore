@@ -1,0 +1,15 @@
+# Maven
+target/
+*.class
+
+# App runtime data / process logs (generated when running the app)
+data/
+*.log
+*.pid.txt
+
+# IDE
+.idea/
+.vscode/
+
+# Claude Code local settings
+.claude/

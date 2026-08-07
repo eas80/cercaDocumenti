@@ -1,0 +1,15 @@
+server:
+  port: 8080
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+documentstore:
+  storage:
+    # disk (default, active today) | mongo (see README.md for migration steps)
+    type: disk
+    disk:
+      directory: ./data/documents
