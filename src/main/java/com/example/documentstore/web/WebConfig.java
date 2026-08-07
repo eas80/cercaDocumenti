@@ -1,5 +1,7 @@
 package com.example.documentstore.web;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -17,10 +19,18 @@ import java.util.List;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
+    private static final Logger log = LoggerFactory.getLogger(WebConfig.class);
+
     private final List<String> allowedOrigins;
 
     public WebConfig(@Value("${documentstore.cors.allowed-origins:}") String allowedOriginsProperty) {
         this.allowedOrigins = parseOrigins(allowedOriginsProperty);
+        if (allowedOrigins.isEmpty()) {
+            log.info("CORS: documentstore.cors.allowed-origins is empty (raw value: '{}') - "
+                    + "no cross-origin mapping registered, /api/** will reject cross-origin requests", allowedOriginsProperty);
+        } else {
+            log.info("CORS: allowing origins {} for /api/**", allowedOrigins);
+        }
     }
 
     static List<String> parseOrigins(String allowedOriginsProperty) {
