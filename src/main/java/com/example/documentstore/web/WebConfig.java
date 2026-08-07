@@ -31,6 +31,9 @@ public class WebConfig implements WebMvcConfigurer {
             log.info("CORS: documentstore.cors.allowed-origins is empty (raw value: '{}') - "
                     + "no cross-origin mapping registered, /api/** will reject cross-origin requests", allowedOriginsProperty);
             log.info("CORS: raw process env vars matching CORS/ORIGIN: {}", dumpMatchingEnvVars());
+            log.info("CORS: ALL env var names visible to this process ({} total): {}",
+                    System.getenv().size(),
+                    System.getenv().keySet().stream().sorted().collect(Collectors.joining(", ")));
         } else {
             log.info("CORS: allowing origins {} for /api/**", allowedOrigins);
         }
