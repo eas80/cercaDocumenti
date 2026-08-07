@@ -19,6 +19,20 @@ I documenti vengono salvati in `./data/documents` (configurabile in
 mvn test
 ```
 
+## Frontend
+
+UI React (Vite + TypeScript) in [`frontend/`](frontend/README.md):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Apre su `http://localhost:5173`; in dev il proxy di Vite (`vite.config.ts`)
+inoltra le chiamate `/api/...` al backend su `http://localhost:8080`, quindi
+non serve configurare CORS in locale.
+
 ## API
 
 ### 1. GET /api/documents/{id} — recupera un documento per id
@@ -156,3 +170,58 @@ Per file molto grandi, in MongoDB conviene sostituire il campo `content`
 con **GridFS** invece di un campo binario embedded: l'interfaccia
 `DocumentRepository` non cambia, cambia solo come `MongoDocumentRepository`
 legge/scrive i byte internamente.
+
+## Docker (backend)
+
+Il [`Dockerfile`](Dockerfile) alla root è multi-stage: build con l'immagine
+Maven ufficiale, runtime su una JRE 17 slim, utente non-root. Espone la porta
+letta da `$PORT` (default `8080`, vedi `application.yml`).
+
+```bash
+docker build -t documentstore-backend .
+docker run --rm -p 8080:8080 documentstore-backend
+curl http://localhost:8080/api/documents
+```
+
+Lo storage di default nell'immagine è `/data/documents`
+(`DOCUMENTSTORE_STORAGE_DISK_DIRECTORY`): se monti un volume/disco su `/data`
+i documenti sopravvivono ai riavvii, altrimenti è storage effimero del
+container (persa ad ogni `docker run`/redeploy) — va benissimo per provare
+l'immagine, non per dati che contano.
+
+> Nota: in questo ambiente di sviluppo Docker non era disponibile, quindi il
+> Dockerfile non è stato eseguito localmente — segue però un pattern standard
+> (build Maven ufficiale + runtime JRE separato) e usa lo stesso `pom.xml` già
+> validato da `mvn test`. Vale la pena una build di prova (`docker build`)
+> prima del primo deploy.
+
+## Deploy su Render
+
+Il file [`render.yaml`](render.yaml) alla root definisce entrambi i servizi
+come Blueprint: su Render, **New > Blueprint**, seleziona questo repository.
+
+- `documentstore-backend`: Web Service Docker (usa il `Dockerfile` sopra).
+- `documentstore-frontend`: Static Site (`frontend/`, `npm ci && npm run build`,
+  pubblica `frontend/dist`).
+
+Entrambi i servizi hanno una variabile d'ambiente marcata `sync: false`
+(Render la lascia vuota e te la chiede in dashboard) perché c'è una dipendenza
+circolare fra i due URL, noti solo dopo il primo deploy:
+
+1. Lancia il Blueprint. Render assegna un URL a entrambi i servizi (es.
+   `https://documentstore-backend-xxxx.onrender.com` e
+   `https://documentstore-frontend-xxxx.onrender.com`).
+2. Sul servizio **backend**, imposta `DOCUMENTSTORE_CORS_ALLOWED_ORIGINS`
+   all'URL del frontend (senza slash finale) e salva — Render lo riavvia da
+   solo.
+3. Sul servizio **frontend**, imposta `VITE_API_BASE_URL` all'URL del
+   backend e triggera un **Manual Deploy**: essendo una static site, il
+   valore viene "cotto" nel bundle in fase di build, quindi non basta
+   riavviare, serve una rebuild.
+
+Storage: senza un [Render Disk](https://render.com/docs/disks) montato su
+`/data` sul servizio backend, i documenti caricati vengono persi a ogni
+redeploy/riavvio del container (il piano free non supporta i Disk). Per dati
+persistenti: aggiungi un Disk (mount path `/data`) dalla dashboard del
+servizio quando passi a un piano a pagamento — non serve nessuna modifica al
+codice, la directory di storage di default è già quel percorso.

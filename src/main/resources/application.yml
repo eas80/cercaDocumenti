@@ -1,5 +1,6 @@
 server:
-  port: 8080
+  # Render (and most PaaS) injects the port to listen on via $PORT.
+  port: ${PORT:8080}
 
 spring:
   servlet:
@@ -13,3 +14,8 @@ documentstore:
     type: disk
     disk:
       directory: ./data/documents
+  cors:
+    # Comma-separated list of allowed origins for the frontend, e.g.
+    # https://documentstore-frontend.onrender.com. Empty = no cross-origin
+    # calls allowed (fine for local dev, where the Vite proxy avoids CORS).
+    allowed-origins: ""

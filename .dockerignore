@@ -1,0 +1,10 @@
+target
+data
+frontend
+.git
+.mvn
+.idea
+.vscode
+.claude
+*.log
+*.pid.txt

@@ -1,6 +1,10 @@
 import type { DocumentSummary, SearchParams } from './types';
 
-const BASE_URL = '/api/documents';
+// Unset in local dev: the Vite dev server proxy (vite.config.ts) forwards
+// relative /api calls to the backend. Set in production builds (Render) to
+// the deployed backend's full URL.
+const API_ROOT = import.meta.env.VITE_API_BASE_URL ?? '';
+const BASE_URL = `${API_ROOT}/api/documents`;
 
 async function errorMessage(response: Response): Promise<string> {
   try {
