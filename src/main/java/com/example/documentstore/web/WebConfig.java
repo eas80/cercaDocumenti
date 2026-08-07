@@ -20,8 +20,15 @@ public class WebConfig implements WebMvcConfigurer {
     private final List<String> allowedOrigins;
 
     public WebConfig(@Value("${documentstore.cors.allowed-origins:}") String allowedOriginsProperty) {
-        this.allowedOrigins = Arrays.stream(allowedOriginsProperty.split(","))
+        this.allowedOrigins = parseOrigins(allowedOriginsProperty);
+    }
+
+    static List<String> parseOrigins(String allowedOriginsProperty) {
+        return Arrays.stream(allowedOriginsProperty.split(","))
                 .map(String::trim)
+                // Browsers never send a trailing slash in the Origin header, but it's an
+                // easy copy-paste mistake to configure one - strip it so it still matches.
+                .map(origin -> origin.endsWith("/") ? origin.substring(0, origin.length() - 1) : origin)
                 .filter(origin -> !origin.isEmpty())
                 .toList();
     }
