@@ -9,6 +9,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * Cross-origin access for the frontend, when it's deployed on a different
@@ -28,9 +30,24 @@ public class WebConfig implements WebMvcConfigurer {
         if (allowedOrigins.isEmpty()) {
             log.info("CORS: documentstore.cors.allowed-origins is empty (raw value: '{}') - "
                     + "no cross-origin mapping registered, /api/** will reject cross-origin requests", allowedOriginsProperty);
+            log.info("CORS: raw process env vars matching CORS/ORIGIN: {}", dumpMatchingEnvVars());
         } else {
             log.info("CORS: allowing origins {} for /api/**", allowedOrigins);
         }
+    }
+
+    /**
+     * Reads straight from the OS process environment (bypassing Spring's
+     * property resolution) so a mismatched/misspelled env var name is
+     * visible even when Spring's relaxed binding finds nothing.
+     */
+    private static String dumpMatchingEnvVars() {
+        String dump = System.getenv().entrySet().stream()
+                .filter(entry -> entry.getKey().toUpperCase(Locale.ROOT).contains("CORS")
+                        || entry.getKey().toUpperCase(Locale.ROOT).contains("ORIGIN"))
+                .map(entry -> "[" + entry.getKey() + "]=[" + entry.getValue() + "]")
+                .collect(Collectors.joining(", "));
+        return dump.isEmpty() ? "<none found>" : dump;
     }
 
     static List<String> parseOrigins(String allowedOriginsProperty) {
