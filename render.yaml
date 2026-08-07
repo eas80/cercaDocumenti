@@ -7,10 +7,8 @@ services:
     plan: free
     healthCheckPath: /api/documents
     envVars:
-      # Set after the frontend's URL is known (see README.md) — required for
-      # the browser to be allowed to call this API from the frontend's origin.
       - key: DOCUMENTSTORE_CORS_ALLOWED_ORIGINS
-        sync: false
+        value: https://cercadocumenti.onrender.com
 
   - name: documentstore-frontend
     type: web
