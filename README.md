@@ -331,10 +331,28 @@ circolare fra i due URL, noti solo dopo il primo deploy:
    nel Dockerfile): senza, ogni riavvio invalida le sessioni attive, fastidioso
    ma non un problema di sicurezza — se vuoi sessioni stabili tra i redeploy,
    impostala con una stringa casuale di almeno 32 caratteri.
+5. Storage attivo: **Cloudinary**, anche questo cotto nel `Dockerfile`
+   (`DOCUMENTSTORE_STORAGE_TYPE`, `DOCUMENTSTORE_STORAGE_CLOUDINARY_*`) dopo
+   la terza conferma dello stesso problema di propagazione delle env var da
+   dashboard (CORS, poi auth, poi questo). A differenza delle credenziali
+   sopra, qui si tratta di un **vero segreto di un servizio terzo a
+   pagamento**: chiunque legga la cronologia di questo repo pubblico potrebbe
+   usarlo per caricare file o consumare la quota dell'account Cloudinary
+   collegato. Scelta consapevole per sbloccare la funzionalità subito;
+   valutare seriamente di risolvere il problema con il supporto Render (le
+   prove raccolte in questo progetto — variabile impostata e salvata ma
+   assente dal processo, per tre variabili diverse in tre momenti diversi —
+   sono un buon punto di partenza per un ticket) e poi rigenerare/ruotare
+   questa API key su Cloudinary una volta spostata fuori dal Dockerfile.
 
-Storage: senza un [Render Disk](https://render.com/docs/disks) montato su
-`/data` sul servizio backend, i documenti caricati vengono persi a ogni
-redeploy/riavvio del container (il piano free non supporta i Disk). Per dati
-persistenti: aggiungi un Disk (mount path `/data`) dalla dashboard del
-servizio quando passi a un piano a pagamento — non serve nessuna modifica al
-codice, la directory di storage di default è già quel percorso.
+Storage: con `documentstore.storage.type=cloudinary` attivo, il *contenuto*
+dei documenti è al sicuro su Cloudinary indipendentemente da Render. Restano
+comunque su disco i *metadati* (nome, descrizione, ricerca) in
+`DOCUMENTSTORE_STORAGE_CLOUDINARY_METADATA_DIRECTORY` (default
+`/data/cloudinary-metadata` nell'immagine Docker): senza un
+[Render Disk](https://render.com/docs/disks) montato su `/data`, quell'indice
+viene perso a ogni redeploy/riavvio (il piano free non supporta i Disk) — i
+file restano comunque su Cloudinary, ma la loro voce sparisce dalla ricerca.
+Con `documentstore.storage.type=disk` (default se non impostato), invece,
+sia contenuto che metadati sono sullo stesso disco effimero e si perdono
+insieme.

@@ -19,6 +19,10 @@ services:
       # next restart (a new random signing key is generated each time).
       - key: DOCUMENTSTORE_JWT_SECRET
         sync: false
+      # DOCUMENTSTORE_STORAGE_TYPE and DOCUMENTSTORE_STORAGE_CLOUDINARY_* are
+      # intentionally NOT listed here (unlike the vars above) - they're real
+      # third-party credentials, baked directly into the Dockerfile instead
+      # of duplicating them in this file too. See README.md and Dockerfile.
 
   - name: documentstore-frontend
     type: web

@@ -39,5 +39,18 @@ ENV DOCUMENTSTORE_CORS_ALLOWED_ORIGINS=https://cercadocumenti.onrender.com
 # a real DOCUMENTSTORE_AUTH_USERS env var if one is actually injected.
 ENV DOCUMENTSTORE_AUTH_USERS=simona:simona,antonio:antonio
 
+# Cloudinary storage backend, baked in for the same reason as above (three
+# separate features now - CORS, auth, and this - have all confirmed that
+# dashboard-set env vars never reach this Render service's container).
+# UNLIKE the values above, this is a real third-party paid-service secret,
+# not a throwaway/public value: anyone who can read this public repo's
+# history can upload files or run up usage on this Cloudinary account.
+# Accepted consciously for now to unblock the feature - see README.md.
+# Overridable by a real env var of the same name if one is ever injected.
+ENV DOCUMENTSTORE_STORAGE_TYPE=cloudinary
+ENV DOCUMENTSTORE_STORAGE_CLOUDINARY_CLOUD_NAME=nycbynnm
+ENV DOCUMENTSTORE_STORAGE_CLOUDINARY_API_KEY=875519517212432
+ENV DOCUMENTSTORE_STORAGE_CLOUDINARY_API_SECRET=MVHJyzMo2rVhLOc4TLY6LID0-8M
+
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
