@@ -4,7 +4,10 @@ import SearchForm from './components/SearchForm';
 import ResultsTable from './components/ResultsTable';
 import DescriptionModal from './components/DescriptionModal';
 import DocumentFormModal from './components/DocumentFormModal';
+import LoginPage from './components/LoginPage';
 import { searchDocuments } from './api/documentsApi';
+import { logout } from './api/authApi';
+import { useAuthToken } from './hooks/useAuthToken';
 import type { DocumentSummary, SearchParams } from './api/types';
 import { emptySearchParams } from './api/types';
 
@@ -15,6 +18,7 @@ type ModalState =
   | null;
 
 function App() {
+  const token = useAuthToken();
   const [searchParams, setSearchParams] = useState<SearchParams>(emptySearchParams);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,18 +39,24 @@ function App() {
   }
 
   useEffect(() => {
-    runSearch();
+    if (token) {
+      runSearch();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   function handleSaved() {
     setModal(null);
     runSearch();
   }
 
+  if (!token) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="app-shell">
-      <Header />
+      <Header onLogout={logout} />
 
       <main className="app-main">
         <section className="card">

@@ -1,10 +1,21 @@
 import type { DocumentSummary, SearchParams } from './types';
+import { API_ROOT } from './apiRoot';
+import { getToken, setToken } from '../auth/authStore';
 
-// Unset in local dev: the Vite dev server proxy (vite.config.ts) forwards
-// relative /api calls to the backend. Set in production builds (Render) to
-// the deployed backend's full URL.
-const API_ROOT = import.meta.env.VITE_API_BASE_URL ?? '';
 const BASE_URL = `${API_ROOT}/api/documents`;
+
+/** Attaches the bearer token (if any) and logs out automatically on a 401. */
+async function authorizedFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const token = getToken();
+  const headers = new Headers(init.headers);
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const response = await fetch(url, { ...init, headers });
+  if (response.status === 401) {
+    setToken(null);
+  }
+  return response;
+}
 
 async function errorMessage(response: Response): Promise<string> {
   try {
@@ -25,7 +36,7 @@ export async function searchDocuments(params: SearchParams): Promise<DocumentSum
   if (params.dateFrom) query.set('dateFrom', params.dateFrom);
   if (params.dateTo) query.set('dateTo', params.dateTo);
 
-  const response = await fetch(`${BASE_URL}?${query.toString()}`);
+  const response = await authorizedFetch(`${BASE_URL}?${query.toString()}`);
   if (!response.ok) throw new Error(await errorMessage(response));
   return response.json();
 }
@@ -36,7 +47,7 @@ export async function createDocument(name: string, description: string, file: Fi
   formData.set('description', description);
   formData.set('file', file);
 
-  const response = await fetch(BASE_URL, { method: 'PUT', body: formData });
+  const response = await authorizedFetch(BASE_URL, { method: 'PUT', body: formData });
   if (!response.ok) throw new Error(await errorMessage(response));
   return response.json();
 }
@@ -52,13 +63,13 @@ export async function updateDocument(
   formData.set('description', description);
   if (file) formData.set('file', file);
 
-  const response = await fetch(`${BASE_URL}/${encodeURIComponent(id)}`, { method: 'POST', body: formData });
+  const response = await authorizedFetch(`${BASE_URL}/${encodeURIComponent(id)}`, { method: 'POST', body: formData });
   if (!response.ok) throw new Error(await errorMessage(response));
   return response.json();
 }
 
 export async function downloadDocument(id: string, fallbackFilename: string): Promise<void> {
-  const response = await fetch(`${BASE_URL}/${encodeURIComponent(id)}`);
+  const response = await authorizedFetch(`${BASE_URL}/${encodeURIComponent(id)}`);
   if (!response.ok) throw new Error(await errorMessage(response));
 
   const blob = await response.blob();

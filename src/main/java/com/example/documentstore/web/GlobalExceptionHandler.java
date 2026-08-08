@@ -4,6 +4,7 @@ import com.example.documentstore.service.DocumentNotFoundException;
 import com.example.documentstore.web.dto.ApiError;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -19,6 +20,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleNotFound(DocumentNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiError(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiError> handleAuthenticationError(AuthenticationException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiError(HttpStatus.UNAUTHORIZED.value(), "Invalid username or password"));
     }
 
     @ExceptionHandler({MissingServletRequestParameterException.class,

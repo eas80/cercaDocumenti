@@ -19,3 +19,14 @@ documentstore:
     # https://documentstore-frontend.onrender.com. Empty = no cross-origin
     # calls allowed (fine for local dev, where the Vite proxy avoids CORS).
     allowed-origins: ""
+  auth:
+    # Comma-separated username:password pairs, e.g. "alice:secret1,bob:secret2".
+    # Empty = a single random-password "admin" account is generated at
+    # startup and logged (see SecurityConfig) - fine for a quick try, not for
+    # anything you actually want to keep private.
+    users: ""
+    jwt:
+      # 32+ byte secret for signing tokens. Empty = a random key is generated
+      # per process start (safe, but invalidates all sessions on every restart).
+      secret: ""
+      expiration-minutes: 120

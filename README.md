@@ -33,7 +33,40 @@ Apre su `http://localhost:5173`; in dev il proxy di Vite (`vite.config.ts`)
 inoltra le chiamate `/api/...` al backend su `http://localhost:8080`, quindi
 non serve configurare CORS in locale.
 
+## Autenticazione
+
+Tutte le API sotto `/api/documents/**` richiedono un token JWT (`Authorization:
+Bearer <token>`), ottenuto via login. Nessuna auto-registrazione: gli utenti
+sono un elenco fisso in configurazione.
+
+```bash
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","password":"demo1234"}'
+# -> {"token":"eyJ...","username":"demo"}
+
+curl http://localhost:8080/api/documents \
+  -H "Authorization: Bearer eyJ..."
+```
+
+Configurazione (env var, vedi `application.yml` per i nomi delle proprietà):
+
+| Env var | Significato | Se non impostata |
+|---|---|---|
+| `DOCUMENTSTORE_AUTH_USERS` | `user1:pass1,user2:pass2` — elenco utenti | genera un singolo utente `admin` con password casuale, **loggata a ogni avvio** (cerca `AUTH:` nei log) |
+| `DOCUMENTSTORE_JWT_SECRET` | chiave di firma dei token, minimo 32 byte | genera una chiave casuale per processo: tutti i token diventano non validi a ogni riavvio |
+| `DOCUMENTSTORE_JWT_EXPIRATION_MINUTES` | durata del token (default 120) | — |
+
+`/health` resta pubblico (serve per l'health check di Render, vedi sotto).
+
+Il frontend gestisce login/logout da solo (pagina di login, token in
+`localStorage`, header `Authorization` allegato automaticamente a ogni
+chiamata, logout automatico se il backend risponde `401`) — non serve altra
+configurazione lato frontend.
+
 ## API
+
+Le API sotto richiedono tutte autenticazione (vedi sopra), tranne dove indicato.
 
 ### 1. GET /api/documents/{id} — recupera un documento per id
 
@@ -179,8 +212,8 @@ letta da `$PORT` (default `8080`, vedi `application.yml`).
 
 ```bash
 docker build -t documentstore-backend .
-docker run --rm -p 8080:8080 documentstore-backend
-curl http://localhost:8080/api/documents
+docker run --rm -p 8080:8080 -e DOCUMENTSTORE_AUTH_USERS=demo:demo1234 documentstore-backend
+curl http://localhost:8080/health
 ```
 
 Lo storage di default nell'immagine è `/data/documents`
@@ -218,6 +251,19 @@ circolare fra i due URL, noti solo dopo il primo deploy:
    backend e triggera un **Manual Deploy**: essendo una static site, il
    valore viene "cotto" nel bundle in fase di build, quindi non basta
    riavviare, serve una rebuild.
+4. Sul servizio **backend**, imposta anche `DOCUMENTSTORE_AUTH_USERS`
+   (`user1:pass1,user2:pass2`) e `DOCUMENTSTORE_JWT_SECRET` (una stringa
+   casuale di almeno 32 caratteri) — vedi sezione **Autenticazione** sopra.
+   **Attenzione:** durante questo progetto le variabili d'ambiente impostate
+   da dashboard per il servizio backend non sono arrivate al container in
+   modo affidabile (causa mai isolata con certezza — vedi i log `CORS:` nel
+   codice, la stessa diagnostica si applica a qualunque env var). Dopo averle
+   impostate, controlla nei log di avvio che non compaia una riga `AUTH:
+   documentstore.auth.users is empty` — se compare, l'app sta comunque
+   funzionando con un utente `admin` a password generata casualmente e
+   loggata lì, usabile come fallback finché non risolvi il problema con
+   Render (prova a rimuovere/re-impostare la variabile, verificare di essere
+   sul servizio giusto, o come ultima risorsa aprire un ticket a Render).
 
 Storage: senza un [Render Disk](https://render.com/docs/disks) montato su
 `/data` sul servizio backend, i documenti caricati vengono persi a ogni

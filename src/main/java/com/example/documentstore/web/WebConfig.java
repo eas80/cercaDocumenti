@@ -3,9 +3,11 @@ package com.example.documentstore.web;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,9 +19,14 @@ import java.util.stream.Collectors;
  * origin than the backend (e.g. two separate Render services). Configure via
  * {@code documentstore.cors.allowed-origins} (comma-separated); left empty,
  * no cross-origin mapping is registered at all.
+ * <p>
+ * Exposed as a {@link CorsConfigurationSource} bean (rather than a
+ * {@code WebMvcConfigurer}) because Spring Security's filter chain runs
+ * before Spring MVC's own CORS handling and needs this bean directly via
+ * {@code HttpSecurity.cors(...)} - see {@code SecurityConfig}.
  */
 @Configuration
-public class WebConfig implements WebMvcConfigurer {
+public class WebConfig {
 
     private static final Logger log = LoggerFactory.getLogger(WebConfig.class);
 
@@ -45,6 +52,21 @@ public class WebConfig implements WebMvcConfigurer {
         }
     }
 
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        if (!allowedOrigins.isEmpty()) {
+            CorsConfiguration config = new CorsConfiguration();
+            config.setAllowedOrigins(allowedOrigins);
+            config.setAllowedMethods(List.of("GET", "PUT", "POST", "OPTIONS"));
+            config.setAllowedHeaders(List.of("*"));
+            config.setExposedHeaders(List.of(
+                    "Content-Disposition", "X-Document-Id", "X-Document-Name", "X-Document-Last-Modified"));
+            source.registerCorsConfiguration("/api/**", config);
+        }
+        return source;
+    }
+
     /**
      * Reads straight from the OS process environment (bypassing Spring's
      * property resolution) so a mismatched/misspelled env var name is
@@ -67,17 +89,5 @@ public class WebConfig implements WebMvcConfigurer {
                 .map(origin -> origin.endsWith("/") ? origin.substring(0, origin.length() - 1) : origin)
                 .filter(origin -> !origin.isEmpty())
                 .toList();
-    }
-
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        if (allowedOrigins.isEmpty()) {
-            return;
-        }
-        registry.addMapping("/api/**")
-                .allowedOrigins(allowedOrigins.toArray(new String[0]))
-                .allowedMethods("GET", "PUT", "POST", "OPTIONS")
-                .allowedHeaders("*")
-                .exposedHeaders("Content-Disposition", "X-Document-Id", "X-Document-Name", "X-Document-Last-Modified");
     }
 }

@@ -5,10 +5,22 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     plan: free
-    healthCheckPath: /api/documents
+    healthCheckPath: /health
     envVars:
       - key: DOCUMENTSTORE_CORS_ALLOWED_ORIGINS
         value: https://cercadocumenti.onrender.com
+      # Comma-separated username:password pairs, e.g. "alice:secret1,bob:secret2".
+      # IMPORTANT: dashboard-set env vars have not reliably reached this
+      # service before (see README.md) - after setting this, check the
+      # startup logs for an "AUTH:" line to confirm it actually took. If it
+      # didn't, the app falls back to a random-password "admin" account
+      # logged at every startup - use that password to log in meanwhile.
+      - key: DOCUMENTSTORE_AUTH_USERS
+        sync: false
+      # 32+ byte random string. Without it, tokens stay valid only until the
+      # next restart (a new random signing key is generated each time).
+      - key: DOCUMENTSTORE_JWT_SECRET
+        sync: false
 
   - name: documentstore-frontend
     type: web
