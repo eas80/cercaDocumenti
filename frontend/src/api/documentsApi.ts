@@ -68,6 +68,11 @@ export async function updateDocument(
   return response.json();
 }
 
+export async function deleteDocument(id: string): Promise<void> {
+  const response = await authorizedFetch(`${BASE_URL}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error(await errorMessage(response));
+}
+
 export async function downloadDocument(id: string, fallbackFilename: string): Promise<void> {
   const response = await authorizedFetch(`${BASE_URL}/${encodeURIComponent(id)}`);
   if (!response.ok) throw new Error(await errorMessage(response));

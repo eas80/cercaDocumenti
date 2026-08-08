@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Hits the real Cloudinary API - only runs when real credentials are present
@@ -97,5 +98,23 @@ class CloudinaryDocumentRepositoryIT {
         Optional<DocumentEntity> found = repository.findById(updated.id());
         assertThat(found).isPresent();
         assertThat(found.get().content()).isEqualTo("version two".getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void deleteRemovesBothTheLocalMetadataAndTheCloudinaryAsset() throws Exception {
+        DocumentEntity created = repository.save(new DocumentEntity(
+                null, "To delete", "will be removed",
+                "bye".getBytes(StandardCharsets.UTF_8), "text/plain", 0, null));
+        String id = created.id();
+
+        repository.deleteById(id);
+        createdId = null; // already deleted - @AfterEach destroy() would just be a harmless no-op otherwise
+
+        assertThat(repository.existsById(id)).isFalse();
+        assertThat(repository.findById(id)).isEmpty();
+
+        assertThatThrownBy(() -> rawCloudinaryClientForCleanup.api().resource(
+                "documentstore/" + id, ObjectUtils.asMap("resource_type", "raw")))
+                .isInstanceOf(com.cloudinary.api.exceptions.NotFound.class);
     }
 }

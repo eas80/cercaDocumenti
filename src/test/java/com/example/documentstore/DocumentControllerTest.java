@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import java.nio.file.Path;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -132,5 +133,40 @@ class DocumentControllerTest {
     void returns404ForUnknownId() throws Exception {
         mockMvc.perform(authorized(get("/api/documents/{id}", "does-not-exist")))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deletesADocument() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "to-delete.txt", MediaType.TEXT_PLAIN_VALUE, "delete me".getBytes());
+
+        String location = mockMvc.perform(authorized(multipart(HttpMethod.PUT, "/api/documents")
+                        .file(file)
+                        .param("name", "Da eliminare")))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        String id = location.substring(location.lastIndexOf('/') + 1);
+
+        mockMvc.perform(authorized(delete("/api/documents/{id}", id)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(authorized(get("/api/documents/{id}", id)))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(authorized(get("/api/documents").param("nameLike", "eliminare")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void deletingAnUnknownIdReturns404() throws Exception {
+        mockMvc.perform(authorized(delete("/api/documents/{id}", "does-not-exist")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteRejectsRequestsWithoutAToken() throws Exception {
+        mockMvc.perform(delete("/api/documents/{id}", "some-id"))
+                .andExpect(status().isUnauthorized());
     }
 }

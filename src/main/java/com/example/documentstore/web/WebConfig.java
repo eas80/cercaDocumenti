@@ -58,7 +58,7 @@ public class WebConfig {
         if (!allowedOrigins.isEmpty()) {
             CorsConfiguration config = new CorsConfiguration();
             config.setAllowedOrigins(allowedOrigins);
-            config.setAllowedMethods(List.of("GET", "PUT", "POST", "OPTIONS"));
+            config.setAllowedMethods(List.of("GET", "PUT", "POST", "DELETE", "OPTIONS"));
             config.setAllowedHeaders(List.of("*"));
             config.setExposedHeaders(List.of(
                     "Content-Disposition", "X-Document-Id", "X-Document-Name", "X-Document-Last-Modified"));

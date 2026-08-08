@@ -78,6 +78,7 @@ function App() {
             loading={loading}
             onShowDescription={(document) => setModal({ type: 'description', document })}
             onEdit={(document) => setModal({ type: 'edit', document })}
+            onDeleted={runSearch}
           />
         </section>
       </main>

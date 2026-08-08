@@ -122,6 +122,16 @@ curl -X POST http://localhost:8080/api/documents/<id> \
   -F file=@fattura-v2.pdf
 ```
 
+### 5. DELETE /api/documents/{id} — elimina un documento
+
+404 se l'id non esiste. Nessun corpo nella richiesta, `204 No Content` in
+risposta.
+
+```bash
+curl -X DELETE http://localhost:8080/api/documents/<id> \
+  -H "Authorization: Bearer <token>"
+```
+
 ## Migrazione a MongoDB
 
 L'accesso ai dati passa sempre per l'interfaccia

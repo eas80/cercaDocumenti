@@ -140,6 +140,22 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
         return Files.exists(metaPath(id));
     }
 
+    @Override
+    public void deleteById(String id) {
+        try {
+            // Cloudinary's destroy() is idempotent (returns {"result":"not found"}
+            // rather than throwing when the asset is already gone).
+            cloudinary.uploader().destroy(PUBLIC_ID_PREFIX + id, ObjectUtils.asMap("resource_type", "raw"));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to delete document " + id + " from Cloudinary", e);
+        }
+        try {
+            Files.deleteIfExists(metaPath(id));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to delete metadata file " + metaPath(id), e);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private String uploadContent(String id, byte[] content) {
         try {

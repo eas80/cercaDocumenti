@@ -26,4 +26,7 @@ public interface DocumentRepository {
     DocumentEntity save(DocumentEntity document);
 
     boolean existsById(String id);
+
+    /** No-op if the document doesn't exist - callers that need a 404 check {@link #existsById} first. */
+    void deleteById(String id);
 }

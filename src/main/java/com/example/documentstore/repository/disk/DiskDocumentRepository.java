@@ -115,6 +115,22 @@ public class DiskDocumentRepository implements DocumentRepository {
         return Files.exists(metaPath(id));
     }
 
+    @Override
+    public void deleteById(String id) {
+        // Delete metadata first: a reader must never see metadata pointing at
+        // an already-removed content file.
+        deleteIfExists(metaPath(id));
+        deleteIfExists(contentPath(id));
+    }
+
+    private void deleteIfExists(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to delete " + path, e);
+        }
+    }
+
     private boolean matches(DocumentMetadata metadata, DocumentSearchCriteria criteria) {
         if (criteria.nameLike() != null && !containsIgnoreCase(metadata.name(), criteria.nameLike())) {
             return false;

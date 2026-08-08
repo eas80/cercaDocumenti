@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import type { DocumentSummary } from '../api/types';
-import { downloadDocument } from '../api/documentsApi';
+import { deleteDocument, downloadDocument } from '../api/documentsApi';
 import { formatBytes, formatDateTime } from '../utils/format';
+import ConfirmModal from './ConfirmModal';
 
 interface ResultsTableProps {
   documents: DocumentSummary[];
   loading: boolean;
   onShowDescription: (document: DocumentSummary) => void;
   onEdit: (document: DocumentSummary) => void;
+  onDeleted: () => void;
 }
 
-export default function ResultsTable({ documents, loading, onShowDescription, onEdit }: ResultsTableProps) {
+export default function ResultsTable({ documents, loading, onShowDescription, onEdit, onDeleted }: ResultsTableProps) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<DocumentSummary | null>(null);
 
   async function handleDownload(document: DocumentSummary) {
     setDownloadError(null);
@@ -24,6 +27,13 @@ export default function ResultsTable({ documents, loading, onShowDescription, on
     } finally {
       setDownloadingId(null);
     }
+  }
+
+  async function handleConfirmDelete() {
+    if (!pendingDelete) return;
+    await deleteDocument(pendingDelete.id);
+    setPendingDelete(null);
+    onDeleted();
   }
 
   if (loading) {
@@ -41,6 +51,9 @@ export default function ResultsTable({ documents, loading, onShowDescription, on
         <table className="results-table">
           <thead>
             <tr>
+              <th className="download-header">
+                <span className="sr-only">Download</span>
+              </th>
               <th>Nome</th>
               <th>Descrizione</th>
               <th>Tipo</th>
@@ -52,6 +65,18 @@ export default function ResultsTable({ documents, loading, onShowDescription, on
           <tbody>
             {documents.map((doc) => (
               <tr key={doc.id}>
+                <td className="download-cell">
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    aria-label={`Scarica ${doc.name}`}
+                    title="Scarica"
+                    onClick={() => handleDownload(doc)}
+                    disabled={downloadingId === doc.id}
+                  >
+                    {downloadingId === doc.id ? '…' : '⬇'}
+                  </button>
+                </td>
                 <td className="cell-name">{doc.name}</td>
                 <td className="cell-description">{doc.description ? doc.description : <em>—</em>}</td>
                 <td>
@@ -66,13 +91,8 @@ export default function ResultsTable({ documents, loading, onShowDescription, on
                   <button type="button" className="btn btn-small" onClick={() => onEdit(doc)}>
                     Modifica
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-small btn-primary"
-                    onClick={() => handleDownload(doc)}
-                    disabled={downloadingId === doc.id}
-                  >
-                    {downloadingId === doc.id ? 'Scarico…' : 'Download'}
+                  <button type="button" className="btn btn-small btn-danger" onClick={() => setPendingDelete(doc)}>
+                    Elimina
                   </button>
                 </td>
               </tr>
@@ -80,6 +100,16 @@ export default function ResultsTable({ documents, loading, onShowDescription, on
           </tbody>
         </table>
       </div>
+
+      {pendingDelete && (
+        <ConfirmModal
+          title="Eliminare il documento?"
+          message={`"${pendingDelete.name}" verrà eliminato definitivamente. L'operazione non è reversibile.`}
+          confirmLabel="Elimina"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </>
   );
 }

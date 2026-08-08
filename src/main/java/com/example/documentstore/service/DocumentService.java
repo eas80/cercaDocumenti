@@ -47,4 +47,11 @@ public class DocumentService {
         );
         return repository.save(updated);
     }
+
+    public void deleteDocument(String id) {
+        if (!repository.existsById(id)) {
+            throw new DocumentNotFoundException(id);
+        }
+        repository.deleteById(id);
+    }
 }

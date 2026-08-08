@@ -89,6 +89,13 @@ public class DocumentController {
         return DocumentSummaryResponse.from(updated);
     }
 
+    /** 5. DELETE removes a document (404 if the id is unknown). */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable("id") String id) {
+        service.deleteDocument(id);
+        return ResponseEntity.noContent().build();
+    }
+
     private static String urlEncode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
