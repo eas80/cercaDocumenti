@@ -1,6 +1,7 @@
 package com.example.documentstore.repository.cloudinary;
 
 import com.cloudinary.Cloudinary;
+import com.cloudinary.api.ApiResponse;
 import com.cloudinary.utils.ObjectUtils;
 import com.example.documentstore.model.DocumentEntity;
 import com.example.documentstore.repository.DocumentRepository;
@@ -23,29 +24,35 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
  * Stores document content on Cloudinary (as {@code resource_type=raw}
- * assets) and everything else - name, description, size, last-modified date
- * - in local JSON metadata files, the same shape {@link
+ * assets) and everything else - name, description, content type, size,
+ * last-modified date - in local JSON metadata files, the same shape {@link
  * com.example.documentstore.repository.disk.DiskDocumentRepository} already
  * uses for its {@code .meta.json} files. Search stays a local scan for the
- * same reason the disk backend does it that way: Cloudinary's own Search API
- * would work too, but it's a paid-tier-shaped dependency this app doesn't
- * otherwise need, and the metadata is small enough that scanning it locally
- * is simpler and just as fast.
+ * same reason the disk backend does it that way: Cloudinary's Search API
+ * only supports trailing wildcards per token (e.g. {@code Ricerca*}), not
+ * arbitrary substring matching like the rest of this app's search already
+ * promises - verified empirically, not assumed.
  * <p>
- * Content is never lost if this metadata directory is wiped (e.g. an
- * ephemeral container filesystem) - only the ability to list/search it is,
- * until it's re-indexed by some other means. There is currently no
- * automatic reconciliation from Cloudinary back into local metadata.
+ * The local metadata directory is not durable on its own (e.g. an ephemeral
+ * container filesystem wiped on every redeploy) - so name/description/
+ * content-type are <em>also</em> saved as Cloudinary context on every
+ * upload, purely so {@link #reconcileFromCloudinary()} can rebuild the local
+ * index from Cloudinary at startup if it's missing or incomplete. Cloudinary
+ * itself is the durable source of truth; the local index is a rebuildable
+ * cache that makes search/listing fast without depending on Cloudinary's
+ * more limited query syntax.
  */
 @Repository
 @ConditionalOnProperty(prefix = "documentstore.storage", name = "type", havingValue = "cloudinary")
@@ -87,6 +94,7 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
                     cloudName, apiKey.isBlank(), apiSecret.isBlank());
         } else {
             log.info("STORAGE: active backend is cloudinary, cloud-name={}, metadata directory={}", cloudName, metadataDir);
+            reconcileFromCloudinary();
         }
     }
 
@@ -129,7 +137,7 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
                 Instant.now()
         );
 
-        String secureUrl = uploadContent(id, toPersist.content());
+        String secureUrl = uploadContent(toPersist);
         writeMetadata(metaPath(id), CloudinaryDocumentMetadata.from(toPersist, secureUrl));
 
         return toPersist;
@@ -157,18 +165,29 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
     }
 
     @SuppressWarnings("unchecked")
-    private String uploadContent(String id, byte[] content) {
+    private String uploadContent(DocumentEntity document) {
         try {
-            Map<String, Object> result = cloudinary.uploader().upload(content, ObjectUtils.asMap(
-                    "public_id", PUBLIC_ID_PREFIX + id,
+            String context = "name=" + escapeContextValue(document.name())
+                    + "|description=" + escapeContextValue(document.description())
+                    + "|contentType=" + escapeContextValue(document.contentType());
+            Map<String, Object> result = cloudinary.uploader().upload(document.content(), ObjectUtils.asMap(
+                    "public_id", PUBLIC_ID_PREFIX + document.id(),
                     "resource_type", "raw",
                     "overwrite", true,
-                    "invalidate", true
+                    "invalidate", true,
+                    "context", context
             ));
             return (String) result.get("secure_url");
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to upload document " + id + " to Cloudinary", e);
+            throw new UncheckedIOException("Failed to upload document " + document.id() + " to Cloudinary", e);
         }
+    }
+
+    private static String escapeContextValue(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("|", "\\|").replace("=", "\\=");
     }
 
     private byte[] downloadContent(String url) {
@@ -180,6 +199,88 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to download document content from Cloudinary: " + url, e);
         }
+    }
+
+    /**
+     * Rebuilds any local metadata files missing compared to what's actually
+     * on Cloudinary - the fix for the local index being wiped by a redeploy
+     * on a platform without a persistent disk (documents already there
+     * before their name/description/content-type were saved as context will
+     * come back with a placeholder name and no description/content-type,
+     * since that information was never recoverable in the first place).
+     * Failures here are logged, not fatal - the app still starts and serves
+     * whatever local metadata already exists.
+     */
+    @SuppressWarnings("unchecked")
+    private void reconcileFromCloudinary() {
+        Set<String> localIds = listLocalIds();
+        int reconciled = 0;
+        String cursor = null;
+        try {
+            do {
+                var search = cloudinary.search()
+                        .expression("resource_type:raw AND public_id:" + PUBLIC_ID_PREFIX + "*")
+                        .withField("context")
+                        .maxResults(500);
+                if (cursor != null) {
+                    search = search.nextCursor(cursor);
+                }
+                ApiResponse response = search.execute();
+                List<Map<String, Object>> resources = (List<Map<String, Object>>) response.get("resources");
+                for (Map<String, Object> resource : resources) {
+                    String publicId = (String) resource.get("public_id");
+                    String id = publicId.substring(PUBLIC_ID_PREFIX.length());
+                    if (!localIds.contains(id)) {
+                        reconcileOne(id, resource);
+                        reconciled++;
+                    }
+                }
+                cursor = (String) response.get("next_cursor");
+            } while (cursor != null);
+        } catch (Exception e) {
+            log.warn("STORAGE: failed to reconcile the local metadata index from Cloudinary - search/listing may "
+                    + "be incomplete until the next successful startup", e);
+            return;
+        }
+
+        if (reconciled > 0) {
+            log.info("STORAGE: reconciled {} document(s) from Cloudinary into the local metadata index "
+                    + "(the local index was likely wiped by a redeploy/restart)", reconciled);
+        }
+    }
+
+    private Set<String> listLocalIds() {
+        try (Stream<Path> files = Files.list(metadataDir)) {
+            return files
+                    .map(p -> p.getFileName().toString())
+                    .filter(name -> name.endsWith(META_SUFFIX))
+                    .map(name -> name.substring(0, name.length() - META_SUFFIX.length()))
+                    .collect(Collectors.toCollection(HashSet::new));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to list " + metadataDir, e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void reconcileOne(String id, Map<String, Object> resource) {
+        Map<String, Object> context = (Map<String, Object>) resource.get("context");
+        // The Search API returns context flat; a single-resource Admin API
+        // lookup nests it under "custom" instead - handle either shape.
+        if (context != null && context.get("custom") instanceof Map) {
+            context = (Map<String, Object>) context.get("custom");
+        }
+
+        String name = context != null && context.get("name") != null ? (String) context.get("name") : id;
+        String description = context != null ? (String) context.get("description") : null;
+        String contentType = context != null ? (String) context.get("contentType") : null;
+
+        Number bytes = (Number) resource.get("bytes");
+        String createdAt = (String) resource.get("created_at");
+        Instant lastModified = createdAt != null ? Instant.parse(createdAt) : Instant.now();
+        String secureUrl = (String) resource.get("secure_url");
+
+        writeMetadata(metaPath(id), new CloudinaryDocumentMetadata(
+                id, name, description, contentType, bytes != null ? bytes.longValue() : 0, lastModified, secureUrl));
     }
 
     private boolean matches(CloudinaryDocumentMetadata metadata, DocumentSearchCriteria criteria) {

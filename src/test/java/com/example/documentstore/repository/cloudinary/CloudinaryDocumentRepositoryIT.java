@@ -27,19 +27,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @EnabledIfEnvironmentVariable(named = "DOCUMENTSTORE_CLOUDINARY_API_SECRET", matches = ".+")
 class CloudinaryDocumentRepositoryIT {
 
+    private String cloudName;
+    private String apiKey;
+    private String apiSecret;
     private CloudinaryDocumentRepository repository;
     private Cloudinary rawCloudinaryClientForCleanup;
 
     @BeforeEach
     void setUp(@TempDir Path metadataDir) {
-        String cloudName = System.getenv("DOCUMENTSTORE_CLOUDINARY_CLOUD_NAME");
-        String apiKey = System.getenv("DOCUMENTSTORE_CLOUDINARY_API_KEY");
-        String apiSecret = System.getenv("DOCUMENTSTORE_CLOUDINARY_API_SECRET");
+        cloudName = System.getenv("DOCUMENTSTORE_CLOUDINARY_CLOUD_NAME");
+        apiKey = System.getenv("DOCUMENTSTORE_CLOUDINARY_API_KEY");
+        apiSecret = System.getenv("DOCUMENTSTORE_CLOUDINARY_API_SECRET");
 
-        repository = new CloudinaryDocumentRepository(
-                cloudName, apiKey, apiSecret, metadataDir.toString(), new ObjectMapper().findAndRegisterModules());
+        repository = newRepository(metadataDir);
         rawCloudinaryClientForCleanup = new Cloudinary(ObjectUtils.asMap(
                 "cloud_name", cloudName, "api_key", apiKey, "api_secret", apiSecret, "secure", true));
+    }
+
+    private CloudinaryDocumentRepository newRepository(Path metadataDir) {
+        return new CloudinaryDocumentRepository(
+                cloudName, apiKey, apiSecret, metadataDir.toString(), new ObjectMapper().findAndRegisterModules());
     }
 
     private String createdId;
@@ -116,5 +123,48 @@ class CloudinaryDocumentRepositoryIT {
         assertThatThrownBy(() -> rawCloudinaryClientForCleanup.api().resource(
                 "documentstore/" + id, ObjectUtils.asMap("resource_type", "raw")))
                 .isInstanceOf(com.cloudinary.api.exceptions.NotFound.class);
+    }
+
+    @Test
+    void rebuildsTheLocalIndexFromCloudinaryWhenItsWipedLikeAfterARedeploy(@TempDir Path freshMetadataDir) throws Exception {
+        // Simulates exactly the reported bug: content survives a redeploy on
+        // Cloudinary, but the local metadata directory (no persistent disk
+        // on the platform) is empty again, as if freshly deployed.
+        DocumentEntity created = repository.save(new DocumentEntity(
+                null, "Sopravvive al redeploy", "conterrà la parola chiave gennaio",
+                "contenuto persistente".getBytes(StandardCharsets.UTF_8), "text/plain", 0, null));
+        createdId = created.id();
+
+        // Cloudinary's Search API (used for reconciliation) indexes newly
+        // uploaded resources with a short delay - confirmed empirically,
+        // this isn't a guess. In real usage a redeploy happens well after an
+        // upload, so this never matters there; only this fast test needs to
+        // account for it, by retrying instead of asserting immediately.
+        CloudinaryDocumentRepository afterRedeploy = pollUntilReconciled(freshMetadataDir, created.id());
+
+        Optional<DocumentEntity> found = afterRedeploy.findById(created.id());
+        assertThat(found).isPresent();
+        assertThat(found.get().name()).isEqualTo("Sopravvive al redeploy");
+        assertThat(found.get().description()).isEqualTo("conterrà la parola chiave gennaio");
+        assertThat(found.get().contentType()).isEqualTo("text/plain");
+        assertThat(found.get().content()).isEqualTo("contenuto persistente".getBytes(StandardCharsets.UTF_8));
+
+        List<DocumentEntity> byDescription = afterRedeploy.search(
+                new DocumentSearchCriteria(null, "gennaio", null, null));
+        assertThat(byDescription).extracting(DocumentEntity::id).contains(created.id());
+    }
+
+    /** Retries constructing a fresh repository (each construction re-runs reconciliation) until it picks up {@code id}. */
+    private CloudinaryDocumentRepository pollUntilReconciled(Path metadataDir, String id) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 20_000;
+        CloudinaryDocumentRepository candidate;
+        do {
+            candidate = newRepository(metadataDir);
+            if (candidate.existsById(id)) {
+                return candidate;
+            }
+            Thread.sleep(1_000);
+        } while (System.currentTimeMillis() < deadline);
+        return candidate;
     }
 }

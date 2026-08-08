@@ -224,18 +224,26 @@ attiva con `documentstore.storage.type=cloudinary`.
 
 **Design**: il *contenuto* dei documenti vive su Cloudinary (upload come
 risorsa `resource_type=raw`, un servizio pensato per media ma che gestisce
-bene anche file generici). I *metadati* (nome, descrizione, tipo, dimensione,
-data ultima modifica — cioè tutto quello che serve per `GET /api/documents`
-con i filtri di ricerca) restano invece su file JSON locali, esattamente come
-fa `DiskDocumentRepository`. Perché non usare anche per la ricerca le API di
-Cloudinary? Cloudinary ha una Search API con supporto a query stile Lucene
-(filtri su `context.*`, range su `created_at`, ecc.) che in teoria coprirebbe
-questi filtri, ma è un'altra dipendenza esterna con limiti di rate diversi
-per piano e comportamenti verificati solo in parte; scansionare in locale
-pochi JSON di metadati è più semplice, veloce e non introduce un secondo
-punto di fallimento esterno. Il file resta comunque anche etichettato con
-`context` su Cloudinary (visibile nella loro Media Library) come informazione
-di supporto, ma l'app non lo rilegge mai da lì.
+bene anche file generici). Per la *ricerca* (nome/descrizione in like, range
+di date) il repository scansiona file JSON locali, esattamente come fa
+`DiskDocumentRepository` — verificato che la Search API di Cloudinary non è
+un sostituto adeguato: supporta solo wildcard finali per singola parola
+(`context.name:Fattura*`), non substring arbitraria come richiesto dalle API
+di questa app (`*fattura*` genera un errore di sintassi della query).
+
+Nome, descrizione e content-type vengono **anche** salvati come `context` di
+ogni asset su Cloudinary (non solo in locale). Questo non serve alla ricerca
+(mai riletto per quello), ma è ciò che rende possibile la
+**ricostruzione automatica dell'indice locale all'avvio**: se la directory dei
+metadati locali viene svuotata (tipicamente un redeploy su una piattaforma
+senza disco persistente — esattamente il sintomo "dopo ogni deploy non trova
+più i file" osservato in produzione), `CloudinaryDocumentRepository`
+interroga la Search API di Cloudinary per tutto ciò che ha il prefisso
+`documentstore/` e rigenera i `.meta.json` mancanti, leggendo nome/
+descrizione/content-type dal `context` salvato lì. I *contenuti* dei
+documenti non sono mai stati a rischio (restano su Cloudinary
+indipendentemente da cosa succede al container Render); era solo l'indice
+locale usato per cercarli e servirli a sparire.
 
 **Configurazione** (env var, vedi `application.yml` per i nomi delle
 proprietà):
@@ -249,7 +257,8 @@ proprietà):
 | `DOCUMENTSTORE_STORAGE_CLOUDINARY_METADATA_DIRECTORY` | dove salvare i JSON di metadati (default `./data/cloudinary-metadata`) |
 
 **Verificato empiricamente** (non solo dedotto dalla documentazione, che su
-alcuni punti è incompleta) contro un vero account Cloudinary, incluso da
+alcuni punti è incompleta o addirittura contraddittoria fra endpoint diversi)
+contro un vero account Cloudinary, incluso da
 [`CloudinaryDocumentRepositoryIT`](src/test/java/com/example/documentstore/repository/cloudinary/CloudinaryDocumentRepositoryIT.java)
 (gira solo se `DOCUMENTSTORE_CLOUDINARY_API_SECRET` è nell'ambiente — skip
 automatico altrimenti, quindi `mvn test` resta verde senza credenziali):
@@ -261,19 +270,31 @@ automatico altrimenti, quindi `mvn test` resta verde senza credenziali):
 - L'URL di download **senza numero di versione non è affidabile** (torna
   `404`): il `secure_url` restituito dall'upload (con versione) va salvato e
   riusato per sempre, non ricostruito a mano.
-- Il campo `context` nella risposta è annidato sotto `custom`:
-  `{"context":{"custom":{"name":"...","description":"..."}}}`.
+- Il campo `context` nella risposta ha una forma **diversa a seconda
+  dell'endpoint**: annidato sotto `custom` nel lookup di una singola risorsa
+  (Admin API), ma piatto nella Search API. Il codice gestisce entrambe le
+  forme.
+- La ricerca per wildcard sul `context` supporta solo `parola*` (prefisso di
+  singola parola/token), non `*parola*` (substring, errore di sintassi) — per
+  questo la ricerca dell'app resta locale, Cloudinary è usato solo per
+  ricostruire l'indice, non per interrogarlo direttamente a ogni richiesta.
+- La Search API ha un **ritardo di indicizzazione** di qualche secondo dopo
+  un upload (un test che caricava e cercava subito falliva in modo
+  intermittente finché non è stato aggiunto un retry) — irrilevante in
+  pratica: un redeploy avviene sempre ben dopo l'upload originale, mai a
+  ridosso di pochi secondi.
 - Autenticazione via HTTP Basic (`api_key:api_secret`) funziona anche per
   upload/destroy oltre che per le sole letture Admin API — comodo per
   debug con `curl`, non rilevante per l'app (l'SDK Java firma le richieste
   per conto suo).
 
-**Nota**: senza un Render Disk montato sulla directory dei metadati, in caso
-di redeploy/riavvio del container su Render i *contenuti* restano al sicuro
-su Cloudinary ma l'*indice locale* (nome, descrizione, ricerca) va perso —
-non c'è (ancora) una ricostruzione automatica dell'indice leggendo da
-Cloudinary. Stesso discorso già fatto per lo storage su disco puro, dimezzato
-qui al solo indice invece che ai file interi.
+**Nota sui documenti caricati prima di questo fix**: la prima versione di
+questo backend non salvava affatto `context` su Cloudinary (bug corretto in
+questo stesso commit). I documenti caricati prima di allora, se ricostruiti
+dall'indice, torneranno con un nome segnaposto (il loro id) e senza
+descrizione/content-type — quell'informazione non era recuperabile perché non
+era mai stata salvata da nessuna parte se non nel disco locale poi perso. Da
+qui in avanti, invece, sopravvivono a qualsiasi redeploy.
 
 ## Docker (backend)
 
