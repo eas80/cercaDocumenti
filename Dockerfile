@@ -32,5 +32,12 @@ ENV DOCUMENTSTORE_STORAGE_DISK_DIRECTORY=/data/documents
 # the same name if one is actually injected.
 ENV DOCUMENTSTORE_CORS_ALLOWED_ORIGINS=https://cercadocumenti.onrender.com
 
+# Fixed accounts, baked in for the same reason as above (Render dashboard env
+# vars weren't reaching this service). These are plaintext in a public repo's
+# history - fine for trivial/throwaway credentials on a low-stakes personal
+# app, NOT fine if this backend ever holds anything sensitive. Overridable by
+# a real DOCUMENTSTORE_AUTH_USERS env var if one is actually injected.
+ENV DOCUMENTSTORE_AUTH_USERS=simona:simona,antonio:antonio
+
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -251,19 +251,25 @@ circolare fra i due URL, noti solo dopo il primo deploy:
    backend e triggera un **Manual Deploy**: essendo una static site, il
    valore viene "cotto" nel bundle in fase di build, quindi non basta
    riavviare, serve una rebuild.
-4. Sul servizio **backend**, imposta anche `DOCUMENTSTORE_AUTH_USERS`
-   (`user1:pass1,user2:pass2`) e `DOCUMENTSTORE_JWT_SECRET` (una stringa
-   casuale di almeno 32 caratteri) — vedi sezione **Autenticazione** sopra.
-   **Attenzione:** durante questo progetto le variabili d'ambiente impostate
-   da dashboard per il servizio backend non sono arrivate al container in
-   modo affidabile (causa mai isolata con certezza — vedi i log `CORS:` nel
-   codice, la stessa diagnostica si applica a qualunque env var). Dopo averle
-   impostate, controlla nei log di avvio che non compaia una riga `AUTH:
-   documentstore.auth.users is empty` — se compare, l'app sta comunque
-   funzionando con un utente `admin` a password generata casualmente e
-   loggata lì, usabile come fallback finché non risolvi il problema con
-   Render (prova a rimuovere/re-impostare la variabile, verificare di essere
-   sul servizio giusto, o come ultima risorsa aprire un ticket a Render).
+4. `DOCUMENTSTORE_AUTH_USERS` è impostata **sia** in `render.yaml` **sia**
+   come `ENV` nel `Dockerfile` (`simona:simona,antonio:antonio`). Il secondo
+   è quello davvero in vigore: durante questo progetto le variabili
+   d'ambiente impostate da dashboard per questo servizio non sono mai
+   arrivate al container in modo affidabile (causa mai isolata con certezza
+   — stesso sintomo capitato prima con il CORS), quindi si è scelto di
+   "cuocerle" nell'immagine come già fatto per l'origine CORS. **Compromesso
+   consapevole**: username e password restano in chiaro nella cronologia
+   git di un repo pubblico — accettabile solo perché sono credenziali
+   giocattolo per un progetto personale, da non fare se questo backend
+   dovesse mai gestire qualcosa di sensibile (in quel caso: password diverse
+   e più forti, o risolvere davvero il problema delle env var con Render,
+   es. provando i loro **Secret Files** invece delle Environment Variables).
+   Se in futuro una vera variabile d'ambiente dovesse arrivare al container,
+   quella vince comunque su quella cotta nell'immagine.
+   `DOCUMENTSTORE_JWT_SECRET` resta invece `sync: false` (solo dashboard, non
+   nel Dockerfile): senza, ogni riavvio invalida le sessioni attive, fastidioso
+   ma non un problema di sicurezza — se vuoi sessioni stabili tra i redeploy,
+   impostala con una stringa casuale di almeno 32 caratteri.
 
 Storage: senza un [Render Disk](https://render.com/docs/disks) montato su
 `/data` sul servizio backend, i documenti caricati vengono persi a ogni
