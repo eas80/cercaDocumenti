@@ -4,6 +4,8 @@ import com.example.documentstore.model.DocumentEntity;
 import com.example.documentstore.repository.DocumentRepository;
 import com.example.documentstore.repository.DocumentSearchCriteria;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
@@ -40,6 +42,8 @@ import java.util.stream.Stream;
 @ConditionalOnProperty(prefix = "documentstore.storage", name = "type", havingValue = "disk", matchIfMissing = true)
 public class DiskDocumentRepository implements DocumentRepository {
 
+    private static final Logger log = LoggerFactory.getLogger(DiskDocumentRepository.class);
+
     private static final String META_SUFFIX = ".meta.json";
     private static final String CONTENT_SUFFIX = ".content.bin";
 
@@ -56,6 +60,7 @@ public class DiskDocumentRepository implements DocumentRepository {
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot create storage directory " + storageDir, e);
         }
+        log.info("STORAGE: active backend is disk (documentstore.storage.type='disk' or unset), directory={}", storageDir);
     }
 
     @Override

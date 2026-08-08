@@ -6,6 +6,8 @@ import com.example.documentstore.model.DocumentEntity;
 import com.example.documentstore.repository.DocumentRepository;
 import com.example.documentstore.repository.DocumentSearchCriteria;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
@@ -49,6 +51,8 @@ import java.util.stream.Stream;
 @ConditionalOnProperty(prefix = "documentstore.storage", name = "type", havingValue = "cloudinary")
 public class CloudinaryDocumentRepository implements DocumentRepository {
 
+    private static final Logger log = LoggerFactory.getLogger(CloudinaryDocumentRepository.class);
+
     private static final String META_SUFFIX = ".meta.json";
     private static final String PUBLIC_ID_PREFIX = "documentstore/";
 
@@ -57,9 +61,9 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
     private final ObjectMapper objectMapper;
 
     public CloudinaryDocumentRepository(
-            @Value("${documentstore.storage.cloudinary.cloud-name}") String cloudName,
-            @Value("${documentstore.storage.cloudinary.api-key}") String apiKey,
-            @Value("${documentstore.storage.cloudinary.api-secret}") String apiSecret,
+            @Value("${documentstore.storage.cloudinary.cloud-name:}") String cloudName,
+            @Value("${documentstore.storage.cloudinary.api-key:}") String apiKey,
+            @Value("${documentstore.storage.cloudinary.api-secret:}") String apiSecret,
             @Value("${documentstore.storage.cloudinary.metadata-directory:./data/cloudinary-metadata}") String metadataDirectory,
             ObjectMapper objectMapper) {
         this.cloudinary = new Cloudinary(ObjectUtils.asMap(
@@ -73,6 +77,16 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
             Files.createDirectories(this.metadataDir);
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot create metadata directory " + this.metadataDir, e);
+        }
+
+        if (cloudName.isBlank() || apiKey.isBlank() || apiSecret.isBlank()) {
+            log.warn("STORAGE: active backend is cloudinary, but cloud-name/api-key/api-secret look empty "
+                    + "(cloud-name='{}', api-key blank={}, api-secret blank={}) - every upload will fail with a "
+                    + "Cloudinary auth error until DOCUMENTSTORE_STORAGE_CLOUDINARY_* env vars actually reach this "
+                    + "process (see the CORS:/AUTH: diagnostic log lines for the same class of problem)",
+                    cloudName, apiKey.isBlank(), apiSecret.isBlank());
+        } else {
+            log.info("STORAGE: active backend is cloudinary, cloud-name={}, metadata directory={}", cloudName, metadataDir);
         }
     }
 
