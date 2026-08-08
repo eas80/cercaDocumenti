@@ -1,8 +1,9 @@
 # documentstore
 
 Backend Spring Boot per la gestione di documenti (id, nome, descrizione, contenuto,
-data ultima modifica). Persistenza su file system oggi, pensata per essere
-sostituita con MongoDB senza toccare service/controller.
+data ultima modifica). Storage intercambiabile dietro un'unica interfaccia
+(`DocumentRepository`): disco locale (default), Cloudinary, o — con una
+guida, non ancora implementato — MongoDB, senza toccare service/controller.
 
 ## Run
 
@@ -203,6 +204,66 @@ Per file molto grandi, in MongoDB conviene sostituire il campo `content`
 con **GridFS** invece di un campo binario embedded: l'interfaccia
 `DocumentRepository` non cambia, cambia solo come `MongoDocumentRepository`
 legge/scrive i byte internamente.
+
+## Storage su Cloudinary
+
+Terza implementazione di `DocumentRepository`, oltre a disco e (guida)
+MongoDB:
+[`CloudinaryDocumentRepository`](src/main/java/com/example/documentstore/repository/cloudinary/CloudinaryDocumentRepository.java),
+attiva con `documentstore.storage.type=cloudinary`.
+
+**Design**: il *contenuto* dei documenti vive su Cloudinary (upload come
+risorsa `resource_type=raw`, un servizio pensato per media ma che gestisce
+bene anche file generici). I *metadati* (nome, descrizione, tipo, dimensione,
+data ultima modifica — cioè tutto quello che serve per `GET /api/documents`
+con i filtri di ricerca) restano invece su file JSON locali, esattamente come
+fa `DiskDocumentRepository`. Perché non usare anche per la ricerca le API di
+Cloudinary? Cloudinary ha una Search API con supporto a query stile Lucene
+(filtri su `context.*`, range su `created_at`, ecc.) che in teoria coprirebbe
+questi filtri, ma è un'altra dipendenza esterna con limiti di rate diversi
+per piano e comportamenti verificati solo in parte; scansionare in locale
+pochi JSON di metadati è più semplice, veloce e non introduce un secondo
+punto di fallimento esterno. Il file resta comunque anche etichettato con
+`context` su Cloudinary (visibile nella loro Media Library) come informazione
+di supporto, ma l'app non lo rilegge mai da lì.
+
+**Configurazione** (env var, vedi `application.yml` per i nomi delle
+proprietà):
+
+| Env var | Significato |
+|---|---|
+| `DOCUMENTSTORE_STORAGE_TYPE` | `cloudinary` per attivare questo backend |
+| `DOCUMENTSTORE_STORAGE_CLOUDINARY_CLOUD_NAME` | Cloud name Cloudinary (in cima alla loro dashboard) |
+| `DOCUMENTSTORE_STORAGE_CLOUDINARY_API_KEY` | API Key |
+| `DOCUMENTSTORE_STORAGE_CLOUDINARY_API_SECRET` | API Secret — **mai committarla**, solo env var |
+| `DOCUMENTSTORE_STORAGE_CLOUDINARY_METADATA_DIRECTORY` | dove salvare i JSON di metadati (default `./data/cloudinary-metadata`) |
+
+**Verificato empiricamente** (non solo dedotto dalla documentazione, che su
+alcuni punti è incompleta) contro un vero account Cloudinary, incluso da
+[`CloudinaryDocumentRepositoryIT`](src/test/java/com/example/documentstore/repository/cloudinary/CloudinaryDocumentRepositoryIT.java)
+(gira solo se `DOCUMENTSTORE_CLOUDINARY_API_SECRET` è nell'ambiente — skip
+automatico altrimenti, quindi `mvn test` resta verde senza credenziali):
+
+- Caricando un `byte[]` senza nome file (il nostro caso: `MultipartFile` in
+  memoria), Cloudinary **non** aggiunge estensioni a sorpresa al `public_id`
+  — con un file reale invece sì (l'estensione del file originale viene
+  accodata). Per questo il repository carica sempre `byte[]`, mai un `File`.
+- L'URL di download **senza numero di versione non è affidabile** (torna
+  `404`): il `secure_url` restituito dall'upload (con versione) va salvato e
+  riusato per sempre, non ricostruito a mano.
+- Il campo `context` nella risposta è annidato sotto `custom`:
+  `{"context":{"custom":{"name":"...","description":"..."}}}`.
+- Autenticazione via HTTP Basic (`api_key:api_secret`) funziona anche per
+  upload/destroy oltre che per le sole letture Admin API — comodo per
+  debug con `curl`, non rilevante per l'app (l'SDK Java firma le richieste
+  per conto suo).
+
+**Nota**: senza un Render Disk montato sulla directory dei metadati, in caso
+di redeploy/riavvio del container su Render i *contenuti* restano al sicuro
+su Cloudinary ma l'*indice locale* (nome, descrizione, ricerca) va perso —
+non c'è (ancora) una ricostruzione automatica dell'indice leggendo da
+Cloudinary. Stesso discorso già fatto per lo storage su disco puro, dimezzato
+qui al solo indice invece che ai file interi.
 
 ## Docker (backend)
 

@@ -10,10 +10,18 @@ spring:
 
 documentstore:
   storage:
-    # disk (default, active today) | mongo (see README.md for migration steps)
+    # disk (default, active today) | cloudinary | mongo (see README.md)
     type: disk
     disk:
       directory: ./data/documents
+    cloudinary:
+      # Document content lives on Cloudinary; metadata (name, description,
+      # search) stays in local JSON files here, same shape as the disk
+      # backend - Cloudinary has no reliable/fast way to search it back.
+      cloud-name: ""
+      api-key: ""
+      api-secret: ""
+      metadata-directory: ./data/cloudinary-metadata
   cors:
     # Comma-separated list of allowed origins for the frontend, e.g.
     # https://documentstore-frontend.onrender.com. Empty = no cross-origin
