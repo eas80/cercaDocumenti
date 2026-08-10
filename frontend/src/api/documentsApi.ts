@@ -1,6 +1,6 @@
 import type { DocumentSummary, SearchParams } from './types';
 import { API_ROOT } from './apiRoot';
-import { getToken, setToken } from '../auth/authStore';
+import { clearSession, getToken } from '../auth/authStore';
 
 const BASE_URL = `${API_ROOT}/api/documents`;
 
@@ -12,7 +12,7 @@ async function authorizedFetch(url: string, init: RequestInit = {}): Promise<Res
 
   const response = await fetch(url, { ...init, headers });
   if (response.status === 401) {
-    setToken(null);
+    clearSession();
   }
   return response;
 }
@@ -71,6 +71,16 @@ export async function updateDocument(
 export async function deleteDocument(id: string): Promise<void> {
   const response = await authorizedFetch(`${BASE_URL}/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!response.ok) throw new Error(await errorMessage(response));
+}
+
+export async function shareDocument(id: string, usernames: string[]): Promise<DocumentSummary> {
+  const response = await authorizedFetch(`${BASE_URL}/${encodeURIComponent(id)}/share`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usernames }),
+  });
+  if (!response.ok) throw new Error(await errorMessage(response));
+  return response.json();
 }
 
 export async function downloadDocument(id: string, fallbackFilename: string): Promise<void> {

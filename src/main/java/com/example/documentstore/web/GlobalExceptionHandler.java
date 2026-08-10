@@ -1,5 +1,6 @@
 package com.example.documentstore.web;
 
+import com.example.documentstore.service.DocumentAccessDeniedException;
 import com.example.documentstore.service.DocumentNotFoundException;
 import com.example.documentstore.web.dto.ApiError;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,12 @@ public class GlobalExceptionHandler {
                 .body(new ApiError(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
     }
 
+    @ExceptionHandler(DocumentAccessDeniedException.class)
+    public ResponseEntity<ApiError> handleAccessDenied(DocumentAccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiError(HttpStatus.FORBIDDEN.value(), ex.getMessage()));
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiError> handleAuthenticationError(AuthenticationException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -30,7 +37,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({MissingServletRequestParameterException.class,
             MethodArgumentTypeMismatchException.class,
-            MultipartException.class})
+            MultipartException.class,
+            IllegalArgumentException.class})
     public ResponseEntity<ApiError> handleBadRequest(Exception ex) {
         return ResponseEntity.badRequest()
                 .body(new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage()));

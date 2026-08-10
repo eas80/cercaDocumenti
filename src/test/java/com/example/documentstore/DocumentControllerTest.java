@@ -30,6 +30,8 @@ class DocumentControllerTest {
 
     private static final String TEST_USERNAME = "tester";
     private static final String TEST_PASSWORD = "test-password";
+    private static final String OTHER_USERNAME = "other";
+    private static final String OTHER_PASSWORD = "other-password";
 
     @TempDir
     static Path storageDir;
@@ -37,7 +39,8 @@ class DocumentControllerTest {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("documentstore.storage.disk.directory", () -> storageDir.toString());
-        registry.add("documentstore.auth.users", () -> TEST_USERNAME + ":" + TEST_PASSWORD);
+        registry.add("documentstore.auth.users", () ->
+                TEST_USERNAME + ":" + TEST_PASSWORD + "," + OTHER_USERNAME + ":" + OTHER_PASSWORD);
     }
 
     @Autowired
@@ -47,20 +50,29 @@ class DocumentControllerTest {
     private ObjectMapper objectMapper;
 
     private String bearerToken;
+    private String otherBearerToken;
 
     @BeforeEach
     void logIn() throws Exception {
+        bearerToken = "Bearer " + loginAndGetToken(TEST_USERNAME, TEST_PASSWORD);
+        otherBearerToken = "Bearer " + loginAndGetToken(OTHER_USERNAME, OTHER_PASSWORD);
+    }
+
+    private String loginAndGetToken(String username, String password) throws Exception {
         String body = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"" + TEST_USERNAME + "\",\"password\":\"" + TEST_PASSWORD + "\"}"))
+                        .content("{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        JsonNode json = objectMapper.readTree(body);
-        bearerToken = "Bearer " + json.get("token").asText();
+        return objectMapper.readTree(body).get("token").asText();
     }
 
     private MockHttpServletRequestBuilder authorized(MockHttpServletRequestBuilder builder) {
         return builder.header("Authorization", bearerToken);
+    }
+
+    private MockHttpServletRequestBuilder asOther(MockHttpServletRequestBuilder builder) {
+        return builder.header("Authorization", otherBearerToken);
     }
 
     @Test
@@ -168,5 +180,81 @@ class DocumentControllerTest {
     void deleteRejectsRequestsWithoutAToken() throws Exception {
         mockMvc.perform(delete("/api/documents/{id}", "some-id"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void documentsAreIsolatedBetweenUsersUntilShared() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "private.txt", MediaType.TEXT_PLAIN_VALUE, "segreto".getBytes());
+
+        String location = mockMvc.perform(authorized(multipart(HttpMethod.PUT, "/api/documents")
+                        .file(file)
+                        .param("name", "Documento privato")))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        String id = location.substring(location.lastIndexOf('/') + 1);
+
+        // The owner sees it.
+        mockMvc.perform(authorized(get("/api/documents").param("nameLike", "privato")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        // Another user does not - neither in search nor by direct id.
+        mockMvc.perform(asOther(get("/api/documents").param("nameLike", "privato")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(asOther(get("/api/documents/{id}", id)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(asOther(delete("/api/documents/{id}", id)))
+                .andExpect(status().isForbidden());
+
+        // Only the owner can share it - the other user trying is forbidden too.
+        mockMvc.perform(asOther(post("/api/documents/{id}/share", id))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"usernames\":[\"" + OTHER_USERNAME + "\"]}"))
+                .andExpect(status().isForbidden());
+
+        // The owner shares it with the other user.
+        mockMvc.perform(authorized(post("/api/documents/{id}/share", id))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"usernames\":[\"" + OTHER_USERNAME + "\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sharedWith[0]").value(OTHER_USERNAME));
+
+        // Now the other user has full access: sees it, can download, update and delete it.
+        mockMvc.perform(asOther(get("/api/documents").param("nameLike", "privato")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+        mockMvc.perform(asOther(get("/api/documents/{id}", id)))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes("segreto".getBytes()));
+        mockMvc.perform(asOther(delete("/api/documents/{id}", id)))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void sharingWithAnUnknownUserIsRejected() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "doc.txt", MediaType.TEXT_PLAIN_VALUE, "contenuto".getBytes());
+
+        String location = mockMvc.perform(authorized(multipart(HttpMethod.PUT, "/api/documents")
+                        .file(file)
+                        .param("name", "Documento")))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        String id = location.substring(location.lastIndexOf('/') + 1);
+
+        mockMvc.perform(authorized(post("/api/documents/{id}/share", id))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"usernames\":[\"does-not-exist\"]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listsConfiguredUsernames() throws Exception {
+        mockMvc.perform(authorized(get("/api/auth/users")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$", org.hamcrest.Matchers.containsInAnyOrder(TEST_USERNAME, OTHER_USERNAME)));
     }
 }

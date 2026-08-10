@@ -1,6 +1,7 @@
 package com.example.documentstore.model;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Storage-agnostic representation of a stored document. Both the disk-based
@@ -10,6 +11,12 @@ import java.time.Instant;
  * <p>
  * {@code content} is {@code null} when the instance represents metadata only
  * (e.g. search results), and populated when a single document is fetched by id.
+ * <p>
+ * {@code owner} is the username that created the document; {@code null} for
+ * documents created before per-user ownership existed, treated as visible to
+ * everyone rather than orphaned. {@code sharedWith} lists additional usernames
+ * (besides the owner) granted full access - never {@code null}, empty when
+ * not shared with anyone.
  */
 public record DocumentEntity(
         String id,
@@ -18,6 +25,8 @@ public record DocumentEntity(
         byte[] content,
         String contentType,
         long sizeBytes,
-        Instant lastModifiedDate
+        Instant lastModifiedDate,
+        String owner,
+        List<String> sharedWith
 ) {
 }

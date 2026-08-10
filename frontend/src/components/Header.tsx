@@ -1,8 +1,9 @@
 interface HeaderProps {
+  username: string | null;
   onLogout: () => void;
 }
 
-export default function Header({ onLogout }: HeaderProps) {
+export default function Header({ username, onLogout }: HeaderProps) {
   return (
     <header className="app-header">
       <div className="app-header-inner">
@@ -13,6 +14,7 @@ export default function Header({ onLogout }: HeaderProps) {
           <h1>Documenti</h1>
           <p className="app-header-subtitle">Ricerca, inserimento, modifica e download</p>
         </div>
+        {username && <span className="app-header-user">{username}</span>}
         <button type="button" className="btn btn-ghost" onClick={onLogout}>
           Esci
         </button>

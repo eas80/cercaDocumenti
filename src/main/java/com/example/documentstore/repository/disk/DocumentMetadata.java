@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Everything about a document except its raw bytes. Persisted as
@@ -18,7 +19,9 @@ public record DocumentMetadata(
         String description,
         String contentType,
         long sizeBytes,
-        Instant lastModifiedDate
+        Instant lastModifiedDate,
+        String owner,
+        List<String> sharedWith
 ) {
 
     @JsonCreator
@@ -28,7 +31,9 @@ public record DocumentMetadata(
             @JsonProperty("description") String description,
             @JsonProperty("contentType") String contentType,
             @JsonProperty("sizeBytes") long sizeBytes,
-            @JsonProperty("lastModifiedDate") Instant lastModifiedDate
+            @JsonProperty("lastModifiedDate") Instant lastModifiedDate,
+            @JsonProperty("owner") String owner,
+            @JsonProperty("sharedWith") List<String> sharedWith
     ) {
         this.id = id;
         this.name = name;
@@ -36,6 +41,10 @@ public record DocumentMetadata(
         this.contentType = contentType;
         this.sizeBytes = sizeBytes;
         this.lastModifiedDate = lastModifiedDate;
+        this.owner = owner;
+        // Files written before per-user ownership existed have no
+        // "sharedWith" key at all; Jackson leaves it null on read.
+        this.sharedWith = sharedWith != null ? sharedWith : List.of();
     }
 
     static DocumentMetadata from(DocumentEntity entity) {
@@ -45,11 +54,13 @@ public record DocumentMetadata(
                 entity.description(),
                 entity.contentType(),
                 entity.sizeBytes(),
-                entity.lastModifiedDate()
+                entity.lastModifiedDate(),
+                entity.owner(),
+                entity.sharedWith()
         );
     }
 
     DocumentEntity toEntity(byte[] content) {
-        return new DocumentEntity(id, name, description, content, contentType, sizeBytes, lastModifiedDate);
+        return new DocumentEntity(id, name, description, content, contentType, sizeBytes, lastModifiedDate, owner, sharedWith);
     }
 }

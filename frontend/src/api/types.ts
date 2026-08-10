@@ -5,6 +5,8 @@ export interface DocumentSummary {
   contentType: string | null;
   sizeBytes: number;
   lastModifiedDate: string;
+  owner: string | null;
+  sharedWith: string[];
 }
 
 export interface SearchParams {

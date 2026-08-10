@@ -3,6 +3,7 @@ package com.example.documentstore.web.dto;
 import com.example.documentstore.model.DocumentEntity;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Metadata-only view of a document (no content bytes) returned by the search
@@ -15,7 +16,9 @@ public record DocumentSummaryResponse(
         String description,
         String contentType,
         long sizeBytes,
-        Instant lastModifiedDate
+        Instant lastModifiedDate,
+        String owner,
+        List<String> sharedWith
 ) {
     public static DocumentSummaryResponse from(DocumentEntity entity) {
         return new DocumentSummaryResponse(
@@ -24,7 +27,9 @@ public record DocumentSummaryResponse(
                 entity.description(),
                 entity.contentType(),
                 entity.sizeBytes(),
-                entity.lastModifiedDate()
+                entity.lastModifiedDate(),
+                entity.owner(),
+                entity.sharedWith()
         );
     }
 }

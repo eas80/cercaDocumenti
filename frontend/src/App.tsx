@@ -4,10 +4,11 @@ import SearchForm from './components/SearchForm';
 import ResultsTable from './components/ResultsTable';
 import DescriptionModal from './components/DescriptionModal';
 import DocumentFormModal from './components/DocumentFormModal';
+import ShareModal from './components/ShareModal';
 import LoginPage from './components/LoginPage';
 import { searchDocuments } from './api/documentsApi';
 import { logout } from './api/authApi';
-import { useAuthToken } from './hooks/useAuthToken';
+import { useSession } from './hooks/useSession';
 import type { DocumentSummary, SearchParams } from './api/types';
 import { emptySearchParams } from './api/types';
 
@@ -15,10 +16,11 @@ type ModalState =
   | { type: 'create' }
   | { type: 'edit'; document: DocumentSummary }
   | { type: 'description'; document: DocumentSummary }
+  | { type: 'share'; document: DocumentSummary }
   | null;
 
 function App() {
-  const token = useAuthToken();
+  const { token, username } = useSession();
   const [searchParams, setSearchParams] = useState<SearchParams>(emptySearchParams);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,13 +52,18 @@ function App() {
     runSearch();
   }
 
-  if (!token) {
+  function handleShared() {
+    setModal(null);
+    runSearch();
+  }
+
+  if (!token || !username) {
     return <LoginPage />;
   }
 
   return (
     <div className="app-shell">
-      <Header onLogout={logout} />
+      <Header username={username} onLogout={logout} />
 
       <main className="app-main">
         <section className="card">
@@ -76,8 +83,10 @@ function App() {
           <ResultsTable
             documents={documents}
             loading={loading}
+            currentUsername={username}
             onShowDescription={(document) => setModal({ type: 'description', document })}
             onEdit={(document) => setModal({ type: 'edit', document })}
+            onShare={(document) => setModal({ type: 'share', document })}
             onDeleted={runSearch}
           />
         </section>
@@ -97,6 +106,15 @@ function App() {
           document={modal.document}
           onClose={() => setModal(null)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {modal?.type === 'share' && (
+        <ShareModal
+          document={modal.document}
+          currentUsername={username}
+          onClose={() => setModal(null)}
+          onShared={handleShared}
         />
       )}
     </div>

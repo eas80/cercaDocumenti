@@ -49,6 +49,10 @@ class CloudinaryDocumentRepositoryIT {
                 cloudName, apiKey, apiSecret, metadataDir.toString(), new ObjectMapper().findAndRegisterModules());
     }
 
+    private static DocumentEntity newDocument(String id, String name, String description, byte[] content, String contentType) {
+        return new DocumentEntity(id, name, description, content, contentType, 0, null, "tester", List.of());
+    }
+
     private String createdId;
 
     @AfterEach
@@ -62,9 +66,9 @@ class CloudinaryDocumentRepositoryIT {
     @Test
     void savesUploadsAndRetrievesRealContentFromCloudinary() {
         byte[] originalContent = "hello from an integration test".getBytes(StandardCharsets.UTF_8);
-        DocumentEntity toCreate = new DocumentEntity(
+        DocumentEntity toCreate = newDocument(
                 null, "Test Cloudinary Integration", "descrizione con parola chiave fattura",
-                originalContent, "text/plain", 0, null);
+                originalContent, "text/plain");
 
         DocumentEntity created = repository.save(toCreate);
         createdId = created.id();
@@ -95,12 +99,12 @@ class CloudinaryDocumentRepositoryIT {
 
     @Test
     void updatingReplacesTheContentOnCloudinary() {
-        DocumentEntity created = repository.save(new DocumentEntity(
-                null, "Versioned doc", "v1", "version one".getBytes(StandardCharsets.UTF_8), "text/plain", 0, null));
+        DocumentEntity created = repository.save(
+                newDocument(null, "Versioned doc", "v1", "version one".getBytes(StandardCharsets.UTF_8), "text/plain"));
         createdId = created.id();
 
-        DocumentEntity updated = repository.save(new DocumentEntity(
-                created.id(), "Versioned doc", "v2", "version two".getBytes(StandardCharsets.UTF_8), "text/plain", 0, null));
+        DocumentEntity updated = repository.save(
+                newDocument(created.id(), "Versioned doc", "v2", "version two".getBytes(StandardCharsets.UTF_8), "text/plain"));
 
         Optional<DocumentEntity> found = repository.findById(updated.id());
         assertThat(found).isPresent();
@@ -109,9 +113,8 @@ class CloudinaryDocumentRepositoryIT {
 
     @Test
     void deleteRemovesBothTheLocalMetadataAndTheCloudinaryAsset() throws Exception {
-        DocumentEntity created = repository.save(new DocumentEntity(
-                null, "To delete", "will be removed",
-                "bye".getBytes(StandardCharsets.UTF_8), "text/plain", 0, null));
+        DocumentEntity created = repository.save(
+                newDocument(null, "To delete", "will be removed", "bye".getBytes(StandardCharsets.UTF_8), "text/plain"));
         String id = created.id();
 
         repository.deleteById(id);
@@ -130,9 +133,9 @@ class CloudinaryDocumentRepositoryIT {
         // Simulates exactly the reported bug: content survives a redeploy on
         // Cloudinary, but the local metadata directory (no persistent disk
         // on the platform) is empty again, as if freshly deployed.
-        DocumentEntity created = repository.save(new DocumentEntity(
+        DocumentEntity created = repository.save(newDocument(
                 null, "Sopravvive al redeploy", "conterrà la parola chiave gennaio",
-                "contenuto persistente".getBytes(StandardCharsets.UTF_8), "text/plain", 0, null));
+                "contenuto persistente".getBytes(StandardCharsets.UTF_8), "text/plain"));
         createdId = created.id();
 
         // Cloudinary's Search API (used for reconciliation) indexes newly
@@ -148,10 +151,27 @@ class CloudinaryDocumentRepositoryIT {
         assertThat(found.get().description()).isEqualTo("conterrà la parola chiave gennaio");
         assertThat(found.get().contentType()).isEqualTo("text/plain");
         assertThat(found.get().content()).isEqualTo("contenuto persistente".getBytes(StandardCharsets.UTF_8));
+        assertThat(found.get().owner()).isEqualTo("tester");
 
         List<DocumentEntity> byDescription = afterRedeploy.search(
                 new DocumentSearchCriteria(null, "gennaio", null, null));
         assertThat(byDescription).extracting(DocumentEntity::id).contains(created.id());
+    }
+
+    @Test
+    void ownerAndSharedWithSurviveReconciliation(@TempDir Path freshMetadataDir) throws InterruptedException {
+        DocumentEntity created = repository.save(new DocumentEntity(
+                null, "Documento condiviso", "descrizione",
+                "contenuto".getBytes(StandardCharsets.UTF_8), "text/plain", 0, null,
+                "antonio", List.of("simona")));
+        createdId = created.id();
+
+        CloudinaryDocumentRepository afterRedeploy = pollUntilReconciled(freshMetadataDir, created.id());
+
+        Optional<DocumentEntity> found = afterRedeploy.findById(created.id());
+        assertThat(found).isPresent();
+        assertThat(found.get().owner()).isEqualTo("antonio");
+        assertThat(found.get().sharedWith()).containsExactly("simona");
     }
 
     /**

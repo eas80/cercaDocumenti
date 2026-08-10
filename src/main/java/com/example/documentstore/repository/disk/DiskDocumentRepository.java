@@ -99,7 +99,9 @@ public class DiskDocumentRepository implements DocumentRepository {
                 document.content(),
                 document.contentType(),
                 document.content() != null ? document.content().length : 0,
-                Instant.now()
+                Instant.now(),
+                document.owner(),
+                document.sharedWith() != null ? document.sharedWith() : List.of()
         );
 
         // Write content first so metadata (moved into place last) never

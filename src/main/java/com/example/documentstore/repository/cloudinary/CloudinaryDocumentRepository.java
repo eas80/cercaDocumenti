@@ -25,6 +25,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -153,7 +154,9 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
                 document.content(),
                 document.contentType(),
                 document.content() != null ? document.content().length : 0,
-                Instant.now()
+                Instant.now(),
+                document.owner(),
+                document.sharedWith() != null ? document.sharedWith() : List.of()
         );
 
         String secureUrl = uploadContent(toPersist);
@@ -188,7 +191,9 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
         try {
             String context = "name=" + escapeContextValue(document.name())
                     + "|description=" + escapeContextValue(document.description())
-                    + "|contentType=" + escapeContextValue(document.contentType());
+                    + "|contentType=" + escapeContextValue(document.contentType())
+                    + "|owner=" + escapeContextValue(document.owner())
+                    + "|sharedWith=" + escapeContextValue(String.join(",", document.sharedWith()));
             Map<String, Object> result = cloudinary.uploader().upload(document.content(), ObjectUtils.asMap(
                     "public_id", PUBLIC_ID_PREFIX + document.id(),
                     "resource_type", "raw",
@@ -292,6 +297,11 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
         String name = context != null && context.get("name") != null ? (String) context.get("name") : id;
         String description = context != null ? (String) context.get("description") : null;
         String contentType = context != null ? (String) context.get("contentType") : null;
+        String owner = context != null ? (String) context.get("owner") : null;
+        String sharedWithRaw = context != null ? (String) context.get("sharedWith") : null;
+        List<String> sharedWith = sharedWithRaw != null && !sharedWithRaw.isBlank()
+                ? Arrays.stream(sharedWithRaw.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList()
+                : List.of();
 
         Number bytes = (Number) resource.get("bytes");
         String createdAt = (String) resource.get("created_at");
@@ -299,7 +309,8 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
         String secureUrl = (String) resource.get("secure_url");
 
         writeMetadata(metaPath(id), new CloudinaryDocumentMetadata(
-                id, name, description, contentType, bytes != null ? bytes.longValue() : 0, lastModified, secureUrl));
+                id, name, description, contentType, bytes != null ? bytes.longValue() : 0, lastModified, secureUrl,
+                owner, sharedWith));
     }
 
     private boolean matches(CloudinaryDocumentMetadata metadata, DocumentSearchCriteria criteria) {

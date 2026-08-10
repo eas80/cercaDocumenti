@@ -27,6 +27,8 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Stateless JWT-based authentication for every {@code /api/**} endpoint
@@ -34,7 +36,7 @@ import java.util.List;
  * via {@code documentstore.auth.users} (comma-separated {@code user:pass}
  * pairs) - no self-registration, no user database. If left unconfigured, a
  * single random-password admin account is generated and logged at startup
- * (never a silent hardcoded default) - see {@link #buildUserDetailsService}.
+ * (never a silent hardcoded default) - see {@link #resolvedUsers}.
  */
 @Configuration
 @EnableWebSecurity
@@ -47,14 +49,15 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * The resolved list of accounts (fallback random-admin already applied),
+     * computed once and shared by {@link #userDetailsService} and {@link
+     * #configuredUsernames} - the latter is what lets other parts of the app
+     * (e.g. populating a document-sharing picker) know who exists without
+     * depending on Spring Security's {@code UserDetailsService} type.
+     */
     @Bean
-    public UserDetailsService userDetailsService(
-            @Value("${documentstore.auth.users:}") String usersProperty,
-            PasswordEncoder passwordEncoder) {
-        return buildUserDetailsService(usersProperty, passwordEncoder);
-    }
-
-    static UserDetailsService buildUserDetailsService(String usersProperty, PasswordEncoder passwordEncoder) {
+    public List<ConfiguredUser> resolvedUsers(@Value("${documentstore.auth.users:}") String usersProperty) {
         List<ConfiguredUser> configuredUsers = parseUsers(usersProperty);
 
         if (configuredUsers.isEmpty()) {
@@ -62,10 +65,19 @@ public class SecurityConfig {
             log.warn("AUTH: documentstore.auth.users is empty - generated a single account "
                     + "(username='admin', password='{}') for this process. Set DOCUMENTSTORE_AUTH_USERS "
                     + "(comma-separated username:password pairs) to configure real accounts.", generatedPassword);
-            configuredUsers = List.of(new ConfiguredUser("admin", generatedPassword));
+            return List.of(new ConfiguredUser("admin", generatedPassword));
         }
+        return configuredUsers;
+    }
 
-        List<UserDetails> userDetails = configuredUsers.stream()
+    @Bean
+    public Set<String> configuredUsernames(List<ConfiguredUser> resolvedUsers) {
+        return resolvedUsers.stream().map(ConfiguredUser::username).collect(Collectors.toUnmodifiableSet());
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService(List<ConfiguredUser> resolvedUsers, PasswordEncoder passwordEncoder) {
+        List<UserDetails> userDetails = resolvedUsers.stream()
                 .map(u -> User.withUsername(u.username())
                         .password(passwordEncoder.encode(u.password()))
                         .roles("USER")

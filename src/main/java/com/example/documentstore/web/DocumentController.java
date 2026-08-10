@@ -4,6 +4,7 @@ import com.example.documentstore.model.DocumentEntity;
 import com.example.documentstore.repository.DocumentSearchCriteria;
 import com.example.documentstore.service.DocumentService;
 import com.example.documentstore.web.dto.DocumentSummaryResponse;
+import com.example.documentstore.web.dto.ShareRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -94,6 +95,13 @@ public class DocumentController {
     public ResponseEntity<Void> delete(@PathVariable("id") String id) {
         service.deleteDocument(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /** 6. POST replaces the set of users a document is shared with (owner only, 403 otherwise). */
+    @PostMapping("/{id}/share")
+    public DocumentSummaryResponse share(@PathVariable("id") String id, @RequestBody ShareRequest request) {
+        DocumentEntity updated = service.shareDocument(id, request.usernames());
+        return DocumentSummaryResponse.from(updated);
     }
 
     private static String urlEncode(String value) {

@@ -95,7 +95,9 @@ curl "http://localhost:8080/api/documents?nameLike=fattura&dateFrom=2026-01-01&d
 ```
 
 Risposta: elenco di oggetti metadata (id, name, description, contentType,
-sizeBytes, lastModifiedDate) — senza il contenuto del file.
+sizeBytes, lastModifiedDate, owner, sharedWith) — senza il contenuto del
+file. Restituisce solo i documenti tuoi o condivisi con te (vedi
+"Proprietà e condivisione" sotto).
 
 ### 3. PUT /api/documents — inserisce un nuovo documento
 
@@ -131,6 +133,47 @@ risposta.
 curl -X DELETE http://localhost:8080/api/documents/<id> \
   -H "Authorization: Bearer <token>"
 ```
+
+### 6. POST /api/documents/{id}/share — condivide un documento
+
+Solo il proprietario può chiamarla (`403` altrimenti). Sostituisce
+interamente l'elenco di condivisione con quello passato — per togliere una
+condivisione, richiama con un elenco più corto (o vuoto).
+
+```bash
+curl -X POST http://localhost:8080/api/documents/<id>/share \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"usernames":["simona"]}'
+```
+
+`400` se uno degli username non è tra quelli configurati
+(`DOCUMENTSTORE_AUTH_USERS`) — l'elenco valido è consultabile con
+`GET /api/auth/users` (richiede solo autenticazione, non l'ownership di
+nessun documento).
+
+## Proprietà e condivisione
+
+Ogni documento ha un `owner` (chi l'ha caricato) e un `sharedWith` (elenco di
+altri utenti con accesso pieno). Le regole, applicate in
+[`DocumentService`](src/main/java/com/example/documentstore/service/DocumentService.java):
+
+- **Proprietario**: vede, cerca, scarica, modifica, elimina e condivide il
+  documento. È l'unico che può cambiare `sharedWith`.
+- **Utenti in `sharedWith`**: vedono, cercano, scaricano, modificano ed
+  eliminano il documento come se fosse loro — ma non possono cambiare con chi
+  è condiviso.
+- **Tutti gli altri utenti**: il documento non compare nella loro ricerca;
+  un accesso diretto per id restituisce `403`.
+- **Documenti senza proprietario** (`owner: null`) — quelli caricati prima
+  che esistesse questa funzionalità — sono visibili e modificabili da
+  chiunque, invece di sparire per tutti: non essendoci nessuna informazione
+  su chi li avesse caricati, trattarli come "pubblici" è l'unica scelta che
+  non fa perdere l'accesso a nessuno.
+
+Il frontend mostra un badge "Tuo" / "Di {utente}" per riga, e un bottone
+"Condividi" (solo se sei il proprietario) che apre un elenco degli altri
+utenti configurati da spuntare.
 
 ## Migrazione a MongoDB
 
@@ -231,7 +274,7 @@ un sostituto adeguato: supporta solo wildcard finali per singola parola
 (`context.name:Fattura*`), non substring arbitraria come richiesto dalle API
 di questa app (`*fattura*` genera un errore di sintassi della query).
 
-Nome, descrizione e content-type vengono **anche** salvati come `context` di
+Nome, descrizione, content-type, proprietario e condivisioni vengono **anche** salvati come `context` di
 ogni asset su Cloudinary (non solo in locale). Questo non serve alla ricerca
 (mai riletto per quello), ma è ciò che rende possibile la
 **ricostruzione automatica dell'indice locale all'avvio**: se la directory dei

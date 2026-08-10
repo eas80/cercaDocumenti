@@ -1,22 +1,44 @@
-const STORAGE_KEY = 'documentstore.token';
+const TOKEN_KEY = 'documentstore.token';
+const USERNAME_KEY = 'documentstore.username';
 
-type Listener = (token: string | null) => void;
-
-let token: string | null = localStorage.getItem(STORAGE_KEY);
-const listeners = new Set<Listener>();
-
-export function getToken(): string | null {
-  return token;
+export interface Session {
+  token: string | null;
+  username: string | null;
 }
 
-export function setToken(next: string | null): void {
-  token = next;
-  if (next) {
-    localStorage.setItem(STORAGE_KEY, next);
+type Listener = (session: Session) => void;
+
+let session: Session = {
+  token: localStorage.getItem(TOKEN_KEY),
+  username: localStorage.getItem(USERNAME_KEY),
+};
+const listeners = new Set<Listener>();
+
+export function getSession(): Session {
+  return session;
+}
+
+export function getToken(): string | null {
+  return session.token;
+}
+
+export function setSession(token: string | null, username: string | null): void {
+  session = { token, username };
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
   } else {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(TOKEN_KEY);
   }
-  listeners.forEach((listener) => listener(token));
+  if (username) {
+    localStorage.setItem(USERNAME_KEY, username);
+  } else {
+    localStorage.removeItem(USERNAME_KEY);
+  }
+  listeners.forEach((listener) => listener(session));
+}
+
+export function clearSession(): void {
+  setSession(null, null);
 }
 
 export function subscribe(listener: Listener): () => void {

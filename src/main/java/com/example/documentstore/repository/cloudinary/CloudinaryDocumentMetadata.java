@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Everything about a document except its raw bytes, persisted as
@@ -20,7 +21,9 @@ record CloudinaryDocumentMetadata(
         String contentType,
         long sizeBytes,
         Instant lastModifiedDate,
-        String cloudinaryUrl
+        String cloudinaryUrl,
+        String owner,
+        List<String> sharedWith
 ) {
 
     @JsonCreator
@@ -31,7 +34,9 @@ record CloudinaryDocumentMetadata(
             @JsonProperty("contentType") String contentType,
             @JsonProperty("sizeBytes") long sizeBytes,
             @JsonProperty("lastModifiedDate") Instant lastModifiedDate,
-            @JsonProperty("cloudinaryUrl") String cloudinaryUrl) {
+            @JsonProperty("cloudinaryUrl") String cloudinaryUrl,
+            @JsonProperty("owner") String owner,
+            @JsonProperty("sharedWith") List<String> sharedWith) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -39,15 +44,18 @@ record CloudinaryDocumentMetadata(
         this.sizeBytes = sizeBytes;
         this.lastModifiedDate = lastModifiedDate;
         this.cloudinaryUrl = cloudinaryUrl;
+        this.owner = owner;
+        this.sharedWith = sharedWith != null ? sharedWith : List.of();
     }
 
     static CloudinaryDocumentMetadata from(DocumentEntity entity, String cloudinaryUrl) {
         return new CloudinaryDocumentMetadata(
                 entity.id(), entity.name(), entity.description(), entity.contentType(),
-                entity.sizeBytes(), entity.lastModifiedDate(), cloudinaryUrl);
+                entity.sizeBytes(), entity.lastModifiedDate(), cloudinaryUrl,
+                entity.owner(), entity.sharedWith());
     }
 
     DocumentEntity toEntity(byte[] content) {
-        return new DocumentEntity(id, name, description, content, contentType, sizeBytes, lastModifiedDate);
+        return new DocumentEntity(id, name, description, content, contentType, sizeBytes, lastModifiedDate, owner, sharedWith);
     }
 }
