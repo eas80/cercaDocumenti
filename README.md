@@ -34,6 +34,14 @@ Apre su `http://localhost:5173`; in dev il proxy di Vite (`vite.config.ts`)
 inoltra le chiamate `/api/...` al backend su `http://localhost:8080`, quindi
 non serve configurare CORS in locale.
 
+## App Android
+
+Wrapper WebView nativo attorno al frontend deployato, con upload/download di
+file funzionanti (non scontati dentro una WebView) — vedi
+[`android/README.md`](android/README.md) per dettagli e istruzioni di build.
+APK di debug pronto all'uso in `CercaDocumenti.apk` alla root (non
+versionato — rigenerabile con `android/gradlew.bat assembleDebug`).
+
 ## Autenticazione
 
 Tutte le API sotto `/api/documents/**` richiedono un token JWT (`Authorization:

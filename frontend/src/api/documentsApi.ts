@@ -83,12 +83,30 @@ export async function shareDocument(id: string, usernames: string[]): Promise<Do
   return response.json();
 }
 
+// Present only inside the Android WebView wrapper (see android/), which
+// injects this interface so downloads can be saved to the device's real
+// Downloads folder - a plain browser blob download (below) never reaches
+// disk the same way inside a WebView.
+declare global {
+  interface Window {
+    AndroidDownloader?: {
+      saveBase64File(filename: string, mimeType: string, base64Data: string): void;
+    };
+  }
+}
+
 export async function downloadDocument(id: string, fallbackFilename: string): Promise<void> {
   const response = await authorizedFetch(`${BASE_URL}/${encodeURIComponent(id)}`);
   if (!response.ok) throw new Error(await errorMessage(response));
 
   const blob = await response.blob();
   const filename = extractFilename(response.headers.get('Content-Disposition')) ?? fallbackFilename;
+
+  if (window.AndroidDownloader) {
+    const base64 = await blobToBase64(blob);
+    window.AndroidDownloader.saveBase64File(filename, blob.type || 'application/octet-stream', base64);
+    return;
+  }
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -98,6 +116,19 @@ export async function downloadDocument(id: string, fallbackFilename: string): Pr
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      // strips the "data:<mime>;base64," prefix FileReader adds
+      resolve(result.substring(result.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read blob'));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function extractFilename(disposition: string | null): string | null {

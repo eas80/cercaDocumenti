@@ -13,3 +13,6 @@ data/
 
 # Claude Code local settings
 .claude/
+
+# Built Android APK (regenerate with android/gradlew.bat assembleDebug)
+*.apk
