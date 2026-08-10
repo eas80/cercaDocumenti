@@ -2,22 +2,32 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { login } from '../api/authApi';
 
+// If the backend is on a free-tier host that sleeps when idle, a cold start
+// can take up to a minute - past this point the user needs to know that's
+// what's happening, not just stare at a spinner wondering if it's broken.
+const SLOW_LOGIN_HINT_DELAY_MS = 4000;
+
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
+    setSlow(false);
     setError(null);
+    const slowTimer = setTimeout(() => setSlow(true), SLOW_LOGIN_HINT_DELAY_MS);
     try {
       await login(username, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore imprevisto.');
     } finally {
+      clearTimeout(slowTimer);
       setSubmitting(false);
+      setSlow(false);
     }
   }
 
@@ -59,6 +69,12 @@ export default function LoginPage() {
         <button type="submit" className="btn btn-primary login-submit" disabled={submitting}>
           {submitting ? 'Accesso in corso…' : 'Accedi'}
         </button>
+
+        {slow && (
+          <p className="login-hint">
+            Il server potrebbe essere in stand-by e impiegare fino a un minuto per riattivarsi. Attendere…
+          </p>
+        )}
       </form>
     </div>
   );

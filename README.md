@@ -377,13 +377,29 @@ circolare fra i due URL, noti solo dopo il primo deploy:
    questa API key su Cloudinary una volta spostata fuori dal Dockerfile.
 
 Storage: con `documentstore.storage.type=cloudinary` attivo, il *contenuto*
-dei documenti è al sicuro su Cloudinary indipendentemente da Render. Restano
-comunque su disco i *metadati* (nome, descrizione, ricerca) in
+dei documenti è al sicuro su Cloudinary indipendentemente da Render. I
+*metadati* (nome, descrizione, ricerca) vivono su disco in
 `DOCUMENTSTORE_STORAGE_CLOUDINARY_METADATA_DIRECTORY` (default
 `/data/cloudinary-metadata` nell'immagine Docker): senza un
 [Render Disk](https://render.com/docs/disks) montato su `/data`, quell'indice
-viene perso a ogni redeploy/riavvio (il piano free non supporta i Disk) — i
-file restano comunque su Cloudinary, ma la loro voce sparisce dalla ricerca.
-Con `documentstore.storage.type=disk` (default se non impostato), invece,
-sia contenuto che metadati sono sullo stesso disco effimero e si perdono
-insieme.
+viene svuotato a ogni redeploy/riavvio (il piano free non supporta i Disk) —
+ma **si ricostruisce da solo all'avvio** interrogando Cloudinary (vedi
+sezione "Storage su Cloudinary" sopra), quindi non serve più un Disk per non
+perdere i documenti, solo qualche secondo dopo ogni riavvio prima che
+ricerca/elenco tornino completi. Con `documentstore.storage.type=disk`
+(default se non impostato), invece, sia contenuto che metadati sono sullo
+stesso disco effimero e si perdono insieme, senza nulla da cui recuperare.
+
+### Login lento o che sembra bloccato
+
+Sul piano gratuito, Render mette il servizio backend in stand-by dopo un
+periodo di inattività: la prima richiesta dopo lo stand-by (tipicamente il
+login) può impiegare **fino a un minuto** per il "risveglio" del container —
+non è un errore, è il comportamento normale del piano free. Il frontend
+mostra un avviso dopo qualche secondo di attesa per chiarirlo, invece di
+lasciare l'utente a fissare un pulsante "Accesso in corso…" senza spiegazioni.
+La ricostruzione dell'indice Cloudinary (sopra) gira in background *dopo*
+che il server ha iniziato ad accettare richieste, apposta per non allungare
+ulteriormente questo tempo di risveglio. L'unico modo per eliminare
+completamente lo stand-by è passare a un piano Render a pagamento con
+"instance type" sempre attivo.

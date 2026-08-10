@@ -154,16 +154,23 @@ class CloudinaryDocumentRepositoryIT {
         assertThat(byDescription).extracting(DocumentEntity::id).contains(created.id());
     }
 
-    /** Retries constructing a fresh repository (each construction re-runs reconciliation) until it picks up {@code id}. */
+    /**
+     * Reconciliation only runs from the ApplicationReadyEvent listener in real
+     * usage (kept off the startup path so it never delays other endpoints -
+     * see the class javadoc), so a plain {@code new CloudinaryDocumentRepository(...)}
+     * here does not auto-reconcile. Trigger it explicitly and poll, since it
+     * both runs on a background thread and Cloudinary's Search index has a
+     * short delay after an upload (confirmed empirically).
+     */
     private CloudinaryDocumentRepository pollUntilReconciled(Path metadataDir, String id) throws InterruptedException {
+        CloudinaryDocumentRepository candidate = newRepository(metadataDir);
         long deadline = System.currentTimeMillis() + 20_000;
-        CloudinaryDocumentRepository candidate;
         do {
-            candidate = newRepository(metadataDir);
+            candidate.reconcileOnStartup();
+            Thread.sleep(1_000);
             if (candidate.existsById(id)) {
                 return candidate;
             }
-            Thread.sleep(1_000);
         } while (System.currentTimeMillis() < deadline);
         return candidate;
     }

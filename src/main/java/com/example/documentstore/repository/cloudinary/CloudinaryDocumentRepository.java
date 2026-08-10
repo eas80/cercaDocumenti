@@ -11,6 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Repository;
 
 import java.io.IOException;
@@ -66,6 +68,7 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
     private final Cloudinary cloudinary;
     private final Path metadataDir;
     private final ObjectMapper objectMapper;
+    private final boolean credentialsConfigured;
 
     public CloudinaryDocumentRepository(
             @Value("${documentstore.storage.cloudinary.cloud-name:}") String cloudName,
@@ -86,7 +89,8 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
             throw new UncheckedIOException("Cannot create metadata directory " + this.metadataDir, e);
         }
 
-        if (cloudName.isBlank() || apiKey.isBlank() || apiSecret.isBlank()) {
+        this.credentialsConfigured = !cloudName.isBlank() && !apiKey.isBlank() && !apiSecret.isBlank();
+        if (!credentialsConfigured) {
             log.warn("STORAGE: active backend is cloudinary, but cloud-name/api-key/api-secret look empty "
                     + "(cloud-name='{}', api-key blank={}, api-secret blank={}) - every upload will fail with a "
                     + "Cloudinary auth error until DOCUMENTSTORE_STORAGE_CLOUDINARY_* env vars actually reach this "
@@ -94,8 +98,23 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
                     cloudName, apiKey.isBlank(), apiSecret.isBlank());
         } else {
             log.info("STORAGE: active backend is cloudinary, cloud-name={}, metadata directory={}", cloudName, metadataDir);
-            reconcileFromCloudinary();
         }
+    }
+
+    /**
+     * Runs after the app is already accepting requests (not from this bean's
+     * constructor, which runs during context startup and would otherwise
+     * delay every endpoint - including login - behind this Cloudinary call).
+     * A background thread keeps it off Spring's event-publishing thread too.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void reconcileOnStartup() {
+        if (!credentialsConfigured) {
+            return;
+        }
+        Thread thread = new Thread(this::reconcileFromCloudinary, "cloudinary-reconcile");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     @Override
