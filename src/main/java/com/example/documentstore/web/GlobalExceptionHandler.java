@@ -1,5 +1,6 @@
 package com.example.documentstore.web;
 
+import com.example.documentstore.service.CategoryNotFoundException;
 import com.example.documentstore.service.DocumentAccessDeniedException;
 import com.example.documentstore.service.DocumentNotFoundException;
 import com.example.documentstore.web.dto.ApiError;
@@ -17,8 +18,8 @@ import java.io.UncheckedIOException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(DocumentNotFoundException.class)
-    public ResponseEntity<ApiError> handleNotFound(DocumentNotFoundException ex) {
+    @ExceptionHandler({DocumentNotFoundException.class, CategoryNotFoundException.class})
+    public ResponseEntity<ApiError> handleNotFound(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiError(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
     }

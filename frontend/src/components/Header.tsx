@@ -1,9 +1,10 @@
 interface HeaderProps {
   username: string | null;
+  onChangePassword: () => void;
   onLogout: () => void;
 }
 
-export default function Header({ username, onLogout }: HeaderProps) {
+export default function Header({ username, onChangePassword, onLogout }: HeaderProps) {
   return (
     <header className="app-header">
       <div className="app-header-inner">
@@ -15,6 +16,9 @@ export default function Header({ username, onLogout }: HeaderProps) {
           <p className="app-header-subtitle">Ricerca, inserimento, modifica e download</p>
         </div>
         {username && <span className="app-header-user">{username}</span>}
+        <button type="button" className="btn btn-ghost" onClick={onChangePassword}>
+          Cambia password
+        </button>
         <button type="button" className="btn btn-ghost" onClick={onLogout}>
           Esci
         </button>

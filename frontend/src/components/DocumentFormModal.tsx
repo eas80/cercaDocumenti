@@ -1,20 +1,31 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import Modal from './Modal';
-import type { DocumentSummary } from '../api/types';
+import type { Category, DocumentSummary } from '../api/types';
 import { createDocument, updateDocument } from '../api/documentsApi';
 import { formatBytes } from '../utils/format';
 
 interface DocumentFormModalProps {
   mode: 'create' | 'edit';
   document?: DocumentSummary;
+  categories: Category[];
+  /** Category preselected for a new document (the folder it's being created from). */
+  defaultCategoryId?: string | null;
   onClose: () => void;
   onSaved: (document: DocumentSummary) => void;
 }
 
-export default function DocumentFormModal({ mode, document, onClose, onSaved }: DocumentFormModalProps) {
+export default function DocumentFormModal({
+  mode,
+  document,
+  categories,
+  defaultCategoryId,
+  onClose,
+  onSaved,
+}: DocumentFormModalProps) {
   const [name, setName] = useState(document?.name ?? '');
   const [description, setDescription] = useState(document?.description ?? '');
+  const [categoryId, setCategoryId] = useState(document ? (document.categoryId ?? '') : (defaultCategoryId ?? ''));
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +47,8 @@ export default function DocumentFormModal({ mode, document, onClose, onSaved }: 
     setError(null);
     try {
       const saved = isEdit
-        ? await updateDocument(document!.id, name.trim(), description.trim(), file)
-        : await createDocument(name.trim(), description.trim(), file!);
+        ? await updateDocument(document!.id, name.trim(), description.trim(), categoryId || null, file)
+        : await createDocument(name.trim(), description.trim(), categoryId || null, file!);
       onSaved(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore imprevisto.');
@@ -70,6 +81,18 @@ export default function DocumentFormModal({ mode, document, onClose, onSaved }: 
             placeholder="Descrizione facoltativa"
             rows={4}
           />
+        </div>
+
+        <div className="field">
+          <label htmlFor="doc-category">Categoria</label>
+          <select id="doc-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <option value="">Non categorizzato</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="field">

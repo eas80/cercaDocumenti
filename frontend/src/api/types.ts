@@ -7,6 +7,13 @@ export interface DocumentSummary {
   lastModifiedDate: string;
   owner: string | null;
   sharedWith: string[];
+  /** null = uncategorized (never had a category, or its category was deleted). */
+  categoryId: string | null;
+}
+
+export interface Category {
+  id: string;
+  name: string;
 }
 
 export interface SearchParams {

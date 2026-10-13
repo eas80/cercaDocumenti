@@ -156,7 +156,8 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
                 document.content() != null ? document.content().length : 0,
                 Instant.now(),
                 document.owner(),
-                document.sharedWith() != null ? document.sharedWith() : List.of()
+                document.sharedWith() != null ? document.sharedWith() : List.of(),
+                document.categoryId()
         );
 
         String secureUrl = uploadContent(toPersist);
@@ -193,7 +194,8 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
                     + "|description=" + escapeContextValue(document.description())
                     + "|contentType=" + escapeContextValue(document.contentType())
                     + "|owner=" + escapeContextValue(document.owner())
-                    + "|sharedWith=" + escapeContextValue(String.join(",", document.sharedWith()));
+                    + "|sharedWith=" + escapeContextValue(String.join(",", document.sharedWith()))
+                    + "|categoryId=" + escapeContextValue(document.categoryId());
             Map<String, Object> result = cloudinary.uploader().upload(document.content(), ObjectUtils.asMap(
                     "public_id", PUBLIC_ID_PREFIX + document.id(),
                     "resource_type", "raw",
@@ -253,6 +255,9 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
                 List<Map<String, Object>> resources = (List<Map<String, Object>>) response.get("resources");
                 for (Map<String, Object> resource : resources) {
                     String publicId = (String) resource.get("public_id");
+                    if (!publicId.startsWith(PUBLIC_ID_PREFIX)) {
+                        continue;
+                    }
                     String id = publicId.substring(PUBLIC_ID_PREFIX.length());
                     if (!localIds.contains(id)) {
                         reconcileOne(id, resource);
@@ -302,6 +307,8 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
         List<String> sharedWith = sharedWithRaw != null && !sharedWithRaw.isBlank()
                 ? Arrays.stream(sharedWithRaw.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList()
                 : List.of();
+        String categoryIdRaw = context != null ? (String) context.get("categoryId") : null;
+        String categoryId = categoryIdRaw != null && !categoryIdRaw.isBlank() ? categoryIdRaw : null;
 
         Number bytes = (Number) resource.get("bytes");
         String createdAt = (String) resource.get("created_at");
@@ -310,7 +317,7 @@ public class CloudinaryDocumentRepository implements DocumentRepository {
 
         writeMetadata(metaPath(id), new CloudinaryDocumentMetadata(
                 id, name, description, contentType, bytes != null ? bytes.longValue() : 0, lastModified, secureUrl,
-                owner, sharedWith));
+                owner, sharedWith, categoryId));
     }
 
     private boolean matches(CloudinaryDocumentMetadata metadata, DocumentSearchCriteria criteria) {

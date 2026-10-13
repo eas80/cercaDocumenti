@@ -23,7 +23,8 @@ record CloudinaryDocumentMetadata(
         Instant lastModifiedDate,
         String cloudinaryUrl,
         String owner,
-        List<String> sharedWith
+        List<String> sharedWith,
+        String categoryId
 ) {
 
     @JsonCreator
@@ -36,7 +37,8 @@ record CloudinaryDocumentMetadata(
             @JsonProperty("lastModifiedDate") Instant lastModifiedDate,
             @JsonProperty("cloudinaryUrl") String cloudinaryUrl,
             @JsonProperty("owner") String owner,
-            @JsonProperty("sharedWith") List<String> sharedWith) {
+            @JsonProperty("sharedWith") List<String> sharedWith,
+            @JsonProperty("categoryId") String categoryId) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -46,16 +48,17 @@ record CloudinaryDocumentMetadata(
         this.cloudinaryUrl = cloudinaryUrl;
         this.owner = owner;
         this.sharedWith = sharedWith != null ? sharedWith : List.of();
+        this.categoryId = categoryId;
     }
 
     static CloudinaryDocumentMetadata from(DocumentEntity entity, String cloudinaryUrl) {
         return new CloudinaryDocumentMetadata(
                 entity.id(), entity.name(), entity.description(), entity.contentType(),
                 entity.sizeBytes(), entity.lastModifiedDate(), cloudinaryUrl,
-                entity.owner(), entity.sharedWith());
+                entity.owner(), entity.sharedWith(), entity.categoryId());
     }
 
     DocumentEntity toEntity(byte[] content) {
-        return new DocumentEntity(id, name, description, content, contentType, sizeBytes, lastModifiedDate, owner, sharedWith);
+        return new DocumentEntity(id, name, description, content, contentType, sizeBytes, lastModifiedDate, owner, sharedWith, categoryId);
     }
 }

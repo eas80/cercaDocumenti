@@ -1,5 +1,6 @@
 import { API_ROOT } from './apiRoot';
-import { clearSession, getToken, setSession } from '../auth/authStore';
+import { clearSession, setSession } from '../auth/authStore';
+import { authorizedFetch, errorMessage } from './http';
 
 export async function login(username: string, password: string): Promise<void> {
   const response = await fetch(`${API_ROOT}/api/auth/login`, {
@@ -20,10 +21,20 @@ export function logout(): void {
   clearSession();
 }
 
-export async function fetchOtherUsers(): Promise<string[]> {
-  const response = await fetch(`${API_ROOT}/api/auth/users`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const response = await authorizedFetch(`${API_ROOT}/api/auth/password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
   });
+  if (response.status === 403) {
+    throw new Error('La password attuale non è corretta.');
+  }
+  if (!response.ok) throw new Error(await errorMessage(response));
+}
+
+export async function fetchOtherUsers(): Promise<string[]> {
+  const response = await authorizedFetch(`${API_ROOT}/api/auth/users`);
   if (!response.ok) {
     throw new Error(`Impossibile recuperare l'elenco utenti (HTTP ${response.status})`);
   }

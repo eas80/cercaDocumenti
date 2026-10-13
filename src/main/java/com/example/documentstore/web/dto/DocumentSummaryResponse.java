@@ -18,7 +18,8 @@ public record DocumentSummaryResponse(
         long sizeBytes,
         Instant lastModifiedDate,
         String owner,
-        List<String> sharedWith
+        List<String> sharedWith,
+        String categoryId
 ) {
     public static DocumentSummaryResponse from(DocumentEntity entity) {
         return new DocumentSummaryResponse(
@@ -29,7 +30,8 @@ public record DocumentSummaryResponse(
                 entity.sizeBytes(),
                 entity.lastModifiedDate(),
                 entity.owner(),
-                entity.sharedWith()
+                entity.sharedWith(),
+                entity.categoryId()
         );
     }
 }

@@ -66,27 +66,32 @@ public class DocumentController {
     public ResponseEntity<DocumentSummaryResponse> create(
             @RequestParam("name") String name,
             @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "categoryId", required = false) String categoryId,
             @RequestParam("file") MultipartFile file
     ) throws IOException {
-        DocumentEntity created = service.createDocument(name, description, file.getContentType(), file.getBytes());
+        DocumentEntity created = service.createDocument(name, description, categoryId, file.getContentType(), file.getBytes());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .location(URI.create("/api/documents/" + created.id()))
                 .body(DocumentSummaryResponse.from(created));
     }
 
-    /** 4. POST updates an already-existing document (partial update, 404 if the id is unknown). */
+    /**
+     * 4. POST updates an already-existing document (partial update, 404 if the id is unknown).
+     * An omitted {@code categoryId} keeps the current category; an empty one makes the document uncategorized.
+     */
     @PostMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public DocumentSummaryResponse update(
             @PathVariable("id") String id,
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "categoryId", required = false) String categoryId,
             @RequestParam(value = "file", required = false) MultipartFile file
     ) throws IOException {
         boolean hasNewContent = file != null && !file.isEmpty();
         byte[] content = hasNewContent ? file.getBytes() : null;
         String contentType = hasNewContent ? file.getContentType() : null;
 
-        DocumentEntity updated = service.updateDocument(id, name, description, contentType, content);
+        DocumentEntity updated = service.updateDocument(id, name, description, categoryId, contentType, content);
         return DocumentSummaryResponse.from(updated);
     }
 

@@ -62,11 +62,37 @@ Configurazione (env var, vedi `application.yml` per i nomi delle proprietà):
 
 | Env var | Significato | Se non impostata |
 |---|---|---|
-| `DOCUMENTSTORE_AUTH_USERS` | `user1:pass1,user2:pass2` — elenco utenti | genera un singolo utente `admin` con password casuale, **loggata a ogni avvio** (cerca `AUTH:` nei log) |
+| `DOCUMENTSTORE_AUTH_USERS` | `user1:pass1,user2:pass2` — elenco utenti e loro password **iniziale** (vedi "Cambio password" sotto) | genera un singolo utente `admin` con password casuale, **loggata a ogni avvio** (cerca `AUTH:` nei log) |
 | `DOCUMENTSTORE_JWT_SECRET` | chiave di firma dei token, minimo 32 byte | genera una chiave casuale per processo: tutti i token diventano non validi a ogni riavvio |
 | `DOCUMENTSTORE_JWT_EXPIRATION_MINUTES` | durata del token (default 120) | — |
 
 `/health` resta pubblico (serve per l'health check di Render, vedi sotto).
+
+### Cambio password
+
+Ogni utente può cambiare la propria password (bottone "Cambia password"
+nell'header del frontend, oppure via API):
+
+```bash
+curl -X POST http://localhost:8080/api/auth/password \
+  -H "Authorization: Bearer eyJ..." \
+  -H "Content-Type: application/json" \
+  -d '{"currentPassword":"demo","newPassword":"almeno-8-caratteri"}'
+```
+
+`204` se va a buon fine, `403` se la password attuale è sbagliata, `400` se
+la nuova ha meno di 8 caratteri. I token già emessi restano validi fino alla
+loro scadenza.
+
+La nuova password viene salvata (come hash bcrypt) nello stesso posto dei
+documenti — un file `settings/passwords.json` con lo storage su disco, un
+asset `documentstore-settings/passwords.json` con Cloudinary — quindi
+sopravvive ai redeploy esattamente come i documenti. Da quel momento ha la
+precedenza su quella in `DOCUMENTSTORE_AUTH_USERS`, che per quell'utente non
+vale più: **per riportare un utente alla password configurata va cancellata
+la sua voce da `passwords.json`** (o l'intero file/asset). L'elenco degli
+utenti resta invece quello di `DOCUMENTSTORE_AUTH_USERS`: niente
+auto-registrazione.
 
 Il frontend gestisce login/logout da solo (pagina di login, token in
 `localStorage`, header `Authorization` allegato automaticamente a ogni
@@ -110,7 +136,8 @@ file. Restituisce solo i documenti tuoi o condivisi con te (vedi
 ### 3. PUT /api/documents — inserisce un nuovo documento
 
 `multipart/form-data`: `name` (obbligatorio), `description` (opzionale),
-`file` (obbligatorio). L'id viene generato dal server.
+`categoryId` (opzionale, vedi "Categorie" sotto), `file` (obbligatorio).
+L'id viene generato dal server.
 
 ```bash
 curl -X PUT http://localhost:8080/api/documents \
@@ -123,8 +150,10 @@ Risposta `201 Created`, header `Location: /api/documents/{id}`.
 
 ### 4. POST /api/documents/{id} — aggiorna un documento esistente
 
-`multipart/form-data`, tutti i campi opzionali: `name`, `description`, `file`.
-I campi omessi mantengono il valore precedente. 404 se l'id non esiste.
+`multipart/form-data`, tutti i campi opzionali: `name`, `description`,
+`categoryId`, `file`. I campi omessi mantengono il valore precedente; un
+`categoryId` vuoto toglie il documento dalla sua categoria. 404 se l'id non
+esiste.
 
 ```bash
 curl -X POST http://localhost:8080/api/documents/<id> \
@@ -182,6 +211,35 @@ altri utenti con accesso pieno). Le regole, applicate in
 Il frontend mostra un badge "Tuo" / "Di {utente}" per riga, e un bottone
 "Condividi" (solo se sei il proprietario) che apre un elenco degli altri
 utenti configurati da spuntare.
+
+## Categorie
+
+Un documento può stare in una categoria (campo `categoryId`, `null` = non
+categorizzato). Le categorie sono un unico elenco **condiviso da tutti gli
+utenti**: chiunque sia autenticato può crearle, rinominarle ed eliminarle.
+Cosa si vede dentro ciascuna dipende invece dalle solite regole di proprietà
+e condivisione dei documenti.
+
+| Metodo | Path | Body | Risposta |
+|---|---|---|---|
+| `GET` | `/api/categories` | — | elenco `[{"id","name"}]`, ordinato per nome |
+| `POST` | `/api/categories` | `{"name":"Fatture"}` | `201` con la categoria creata |
+| `PUT` | `/api/categories/{id}` | `{"name":"Nuovo nome"}` | la categoria rinominata, `404` se non esiste |
+| `DELETE` | `/api/categories/{id}` | — | `204`, `404` se non esiste |
+
+Il nome è obbligatorio, massimo 60 caratteri e univoco (senza distinguere
+maiuscole/minuscole): altrimenti `400`.
+
+Eliminare una categoria **non elimina i documenti** al suo interno: tornano
+non categorizzati. Come le password cambiate, l'elenco è salvato accanto ai
+documenti (`settings/categories.json` su disco,
+`documentstore-settings/categories.json` su Cloudinary).
+
+Nel frontend la pagina iniziale mostra una cartella per categoria più la
+cartella "Non categorizzato", ognuna col numero di documenti visibili
+all'utente; cliccando si entra nella cartella, dove ci sono la ricerca e la
+tabella dei documenti. La categoria di un documento si sceglie nella finestra
+di inserimento/modifica.
 
 ## Migrazione a MongoDB
 

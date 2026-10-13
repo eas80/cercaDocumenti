@@ -17,6 +17,10 @@ import java.util.List;
  * everyone rather than orphaned. {@code sharedWith} lists additional usernames
  * (besides the owner) granted full access - never {@code null}, empty when
  * not shared with anyone.
+ * <p>
+ * {@code categoryId} references a {@link Category}; {@code null} means
+ * uncategorized. It may also point at a category deleted since - readers
+ * treat that the same as {@code null} (see {@code DocumentService}).
  */
 public record DocumentEntity(
         String id,
@@ -27,6 +31,12 @@ public record DocumentEntity(
         long sizeBytes,
         Instant lastModifiedDate,
         String owner,
-        List<String> sharedWith
+        List<String> sharedWith,
+        String categoryId
 ) {
+
+    public DocumentEntity withCategoryId(String newCategoryId) {
+        return new DocumentEntity(
+                id, name, description, content, contentType, sizeBytes, lastModifiedDate, owner, sharedWith, newCategoryId);
+    }
 }

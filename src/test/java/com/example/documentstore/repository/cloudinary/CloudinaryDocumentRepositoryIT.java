@@ -50,7 +50,7 @@ class CloudinaryDocumentRepositoryIT {
     }
 
     private static DocumentEntity newDocument(String id, String name, String description, byte[] content, String contentType) {
-        return new DocumentEntity(id, name, description, content, contentType, 0, null, "tester", List.of());
+        return new DocumentEntity(id, name, description, content, contentType, 0, null, "tester", List.of(), null);
     }
 
     private String createdId;
@@ -163,7 +163,7 @@ class CloudinaryDocumentRepositoryIT {
         DocumentEntity created = repository.save(new DocumentEntity(
                 null, "Documento condiviso", "descrizione",
                 "contenuto".getBytes(StandardCharsets.UTF_8), "text/plain", 0, null,
-                "antonio", List.of("simona")));
+                "antonio", List.of("simona"), null));
         createdId = created.id();
 
         CloudinaryDocumentRepository afterRedeploy = pollUntilReconciled(freshMetadataDir, created.id());

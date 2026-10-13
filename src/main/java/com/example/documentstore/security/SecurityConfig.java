@@ -12,12 +12,9 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -34,7 +31,8 @@ import java.util.stream.Collectors;
  * Stateless JWT-based authentication for every {@code /api/**} endpoint
  * except {@code /api/auth/login}. Users come from a fixed list configured
  * via {@code documentstore.auth.users} (comma-separated {@code user:pass}
- * pairs) - no self-registration, no user database. If left unconfigured, a
+ * pairs) - no self-registration, no user database; a user can however change
+ * their own password, see {@link UserAccountService}. If left unconfigured, a
  * single random-password admin account is generated and logged at startup
  * (never a silent hardcoded default) - see {@link #resolvedUsers}.
  */
@@ -51,7 +49,7 @@ public class SecurityConfig {
 
     /**
      * The resolved list of accounts (fallback random-admin already applied),
-     * computed once and shared by {@link #userDetailsService} and {@link
+     * computed once and shared by {@link UserAccountService} and {@link
      * #configuredUsernames} - the latter is what lets other parts of the app
      * (e.g. populating a document-sharing picker) know who exists without
      * depending on Spring Security's {@code UserDetailsService} type.
@@ -73,17 +71,6 @@ public class SecurityConfig {
     @Bean
     public Set<String> configuredUsernames(List<ConfiguredUser> resolvedUsers) {
         return resolvedUsers.stream().map(ConfiguredUser::username).collect(Collectors.toUnmodifiableSet());
-    }
-
-    @Bean
-    public UserDetailsService userDetailsService(List<ConfiguredUser> resolvedUsers, PasswordEncoder passwordEncoder) {
-        List<UserDetails> userDetails = resolvedUsers.stream()
-                .map(u -> User.withUsername(u.username())
-                        .password(passwordEncoder.encode(u.password()))
-                        .roles("USER")
-                        .build())
-                .toList();
-        return new InMemoryUserDetailsManager(userDetails);
     }
 
     static List<ConfiguredUser> parseUsers(String usersProperty) {

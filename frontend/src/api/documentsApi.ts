@@ -1,33 +1,8 @@
 import type { DocumentSummary, SearchParams } from './types';
 import { API_ROOT } from './apiRoot';
-import { clearSession, getToken } from '../auth/authStore';
+import { authorizedFetch, errorMessage } from './http';
 
 const BASE_URL = `${API_ROOT}/api/documents`;
-
-/** Attaches the bearer token (if any) and logs out automatically on a 401. */
-async function authorizedFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const token = getToken();
-  const headers = new Headers(init.headers);
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-
-  const response = await fetch(url, { ...init, headers });
-  if (response.status === 401) {
-    clearSession();
-  }
-  return response;
-}
-
-async function errorMessage(response: Response): Promise<string> {
-  try {
-    const body = await response.json();
-    if (body && typeof body.message === 'string') {
-      return body.message;
-    }
-  } catch {
-    // response body wasn't JSON, fall through to the generic message below
-  }
-  return `Richiesta fallita (HTTP ${response.status})`;
-}
 
 export async function searchDocuments(params: SearchParams): Promise<DocumentSummary[]> {
   const query = new URLSearchParams();
@@ -41,10 +16,16 @@ export async function searchDocuments(params: SearchParams): Promise<DocumentSum
   return response.json();
 }
 
-export async function createDocument(name: string, description: string, file: File): Promise<DocumentSummary> {
+export async function createDocument(
+  name: string,
+  description: string,
+  categoryId: string | null,
+  file: File,
+): Promise<DocumentSummary> {
   const formData = new FormData();
   formData.set('name', name);
   formData.set('description', description);
+  formData.set('categoryId', categoryId ?? '');
   formData.set('file', file);
 
   const response = await authorizedFetch(BASE_URL, { method: 'PUT', body: formData });
@@ -56,11 +37,14 @@ export async function updateDocument(
   id: string,
   name: string,
   description: string,
+  categoryId: string | null,
   file: File | null,
 ): Promise<DocumentSummary> {
   const formData = new FormData();
   formData.set('name', name);
   formData.set('description', description);
+  // Always sent: an empty value is what moves the document to "uncategorized".
+  formData.set('categoryId', categoryId ?? '');
   if (file) formData.set('file', file);
 
   const response = await authorizedFetch(`${BASE_URL}/${encodeURIComponent(id)}`, { method: 'POST', body: formData });

@@ -33,7 +33,9 @@ ENV DOCUMENTSTORE_STORAGE_DISK_DIRECTORY=/data/documents
 ENV DOCUMENTSTORE_CORS_ALLOWED_ORIGINS=https://cercadocumenti.onrender.com
 
 # Fixed accounts, baked in for the same reason as above (Render dashboard env
-# vars weren't reaching this service). These are plaintext in a public repo's
+# vars weren't reaching this service). The passwords here are only each
+# account's initial one: once a user changes theirs from the app, the new one
+# is stored alongside the documents and this value no longer applies to them. These are plaintext in a public repo's
 # history - fine for trivial/throwaway credentials on a low-stakes personal
 # app, NOT fine if this backend ever holds anything sensitive. Overridable by
 # a real DOCUMENTSTORE_AUTH_USERS env var if one is actually injected.

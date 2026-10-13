@@ -21,7 +21,8 @@ public record DocumentMetadata(
         long sizeBytes,
         Instant lastModifiedDate,
         String owner,
-        List<String> sharedWith
+        List<String> sharedWith,
+        String categoryId
 ) {
 
     @JsonCreator
@@ -33,7 +34,8 @@ public record DocumentMetadata(
             @JsonProperty("sizeBytes") long sizeBytes,
             @JsonProperty("lastModifiedDate") Instant lastModifiedDate,
             @JsonProperty("owner") String owner,
-            @JsonProperty("sharedWith") List<String> sharedWith
+            @JsonProperty("sharedWith") List<String> sharedWith,
+            @JsonProperty("categoryId") String categoryId
     ) {
         this.id = id;
         this.name = name;
@@ -45,6 +47,7 @@ public record DocumentMetadata(
         // Files written before per-user ownership existed have no
         // "sharedWith" key at all; Jackson leaves it null on read.
         this.sharedWith = sharedWith != null ? sharedWith : List.of();
+        this.categoryId = categoryId;
     }
 
     static DocumentMetadata from(DocumentEntity entity) {
@@ -56,11 +59,12 @@ public record DocumentMetadata(
                 entity.sizeBytes(),
                 entity.lastModifiedDate(),
                 entity.owner(),
-                entity.sharedWith()
+                entity.sharedWith(),
+                entity.categoryId()
         );
     }
 
     DocumentEntity toEntity(byte[] content) {
-        return new DocumentEntity(id, name, description, content, contentType, sizeBytes, lastModifiedDate, owner, sharedWith);
+        return new DocumentEntity(id, name, description, content, contentType, sizeBytes, lastModifiedDate, owner, sharedWith, categoryId);
     }
 }
