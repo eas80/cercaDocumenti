@@ -568,21 +568,18 @@ textarea {
   color: var(--text);
 }
 
-.breadcrumb {
+.folder-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.breadcrumb h2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.breadcrumb-separator {
-  color: var(--text-muted);
+.folder-nav-current {
+  color: var(--text-heading);
+  font-size: 18px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .toolbar-actions {

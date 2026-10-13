@@ -124,6 +124,16 @@ function App() {
 
         {inFolder && (
           <>
+            <nav className="folder-nav" aria-label="Cartella corrente">
+              <button type="button" className="btn" onClick={closeFolder}>
+                ← Tutte le categorie
+              </button>
+              <span className="folder-nav-current">
+                <span aria-hidden="true">{openCategory ? '📁' : '🗂'}</span>{' '}
+                {openCategory ? openCategory.name : 'Non categorizzato'}
+              </span>
+            </nav>
+
             <section className="card">
               <SearchForm
                 value={searchParams}
@@ -135,15 +145,7 @@ function App() {
 
             <section className="card">
               <div className="toolbar">
-                <div className="breadcrumb">
-                  <button type="button" className="btn btn-ghost btn-small" onClick={closeFolder}>
-                    ← Categorie
-                  </button>
-                  <span className="breadcrumb-separator" aria-hidden="true">
-                    /
-                  </span>
-                  <h2>{openCategory ? openCategory.name : 'Non categorizzato'}</h2>
-                </div>
+                <h2>Documenti</h2>
                 <button type="button" className="btn btn-primary" onClick={() => setModal({ type: 'create' })}>
                   + Nuovo documento
                 </button>
